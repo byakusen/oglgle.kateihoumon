@@ -1,0 +1,3084 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>家庭訪問・個人懇談 日程調整アプリ</title>
+  <link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <style>
+    /* -------------------------------------
+       CSS: Base & Typography
+    -------------------------------------- */
+    body {
+      min-height: 100vh;
+      margin: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-family: 'M PLUS Rounded 1c', sans-serif;
+      background: linear-gradient(135deg, #e0c3fc 0%, #8ec5fc 100%);
+      color: #333;
+    }
+
+    /* -------------------------------------
+       CSS: App Container & Glassmorphism
+    -------------------------------------- */
+    .app-container {
+      width: 95%;
+      max-width: 1400px;
+      height: 90vh;
+      background: rgba(255, 255, 255, 0.45);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border-radius: 20px;
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.6);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* -------------------------------------
+       CSS: Header & Tabs
+    -------------------------------------- */
+    header {
+      padding: 20px 30px;
+      background: rgba(255, 255, 255, 0.5);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.8);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    header h1 {
+      margin: 0;
+      font-size: 1.5rem;
+      color: #2c3e50;
+    }
+    .tabs {
+      display: flex;
+      gap: 10px;
+    }
+    .tab-btn {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 30px;
+      background: rgba(255, 255, 255, 0.6);
+      font-size: 1rem;
+      font-family: inherit;
+      font-weight: bold;
+      color: #666;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+    }
+    .tab-btn.active {
+      background: #4caf50;
+      color: white;
+      box-shadow: 0 4px 10px rgba(76, 175, 80, 0.3);
+    }
+    .tab-btn:hover:not(.active) {
+      background: rgba(255, 255, 255, 0.9);
+    }
+
+    /* -------------------------------------
+       CSS: Main Area & Content
+    -------------------------------------- */
+    main {
+      flex: 1;
+      overflow: hidden;
+      position: relative;
+    }
+    .tab-content {
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      padding: 20px;
+      display: none;
+      flex-direction: column;
+      opacity: 0;
+      transition: opacity 0.4s ease-in-out;
+    }
+    .tab-content.active {
+      display: flex;
+      opacity: 1;
+      z-index: 10;
+    }
+
+    .settings-wrapper {
+      flex: 1;
+      display: flex;
+      gap: 20px;
+      overflow-x: auto;
+      padding-bottom: 10px;
+    }
+    .settings-wrapper::-webkit-scrollbar, .schedule-wrapper::-webkit-scrollbar {
+      height: 10px; width: 10px;
+    }
+    .settings-wrapper::-webkit-scrollbar-thumb, .schedule-wrapper::-webkit-scrollbar-thumb {
+      background: rgba(0,0,0,0.2);
+      border-radius: 5px;
+    }
+
+    .class-box {
+      min-width: 500px;
+      background: rgba(255, 255, 255, 0.6);
+      border-radius: 12px;
+      padding: 15px;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+      border: 1px solid rgba(255,255,255,0.8);
+      height: fit-content;
+    }
+    .class-box h3 {
+      margin-top: 0;
+      text-align: center;
+      color: #34495e;
+      border-bottom: 2px solid rgba(0,0,0,0.1);
+      padding-bottom: 10px;
+    }
+
+    .schedule-wrapper {
+      flex: 1;
+      overflow-y: auto;
+      overflow-x: auto;
+      background: rgba(255, 255, 255, 0.6);
+      border-radius: 12px;
+      padding: 0;
+      border: 1px solid rgba(255,255,255,0.8);
+    }
+
+    /* -------------------------------------
+       CSS: Tables & Inputs
+    -------------------------------------- */
+    table {
+      width: 100%;
+      border-collapse: separate;
+      border-spacing: 0;
+      margin-bottom: 10px;
+    }
+    th, td {
+      padding: 8px 4px;
+      text-align: left;
+      border-bottom: 1px solid rgba(0,0,0,0.05);
+    }
+    th {
+      font-size: 0.9rem;
+      color: #555;
+    }
+    td.num-col {
+      width: 30px;
+      text-align: center;
+      font-weight: bold;
+      color: #7f8c8d;
+    }
+    input[type="text"], input[type="number"], input[type="time"], input[type="password"], select {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 8px;
+      border: 1px solid rgba(0,0,0,0.15);
+      border-radius: 6px;
+      font-family: inherit;
+      background: rgba(255,255,255,0.8);
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    input[type="text"]:focus, input[type="number"]:focus, input[type="time"]:focus, input[type="password"]:focus, select:focus {
+      outline: none;
+      border-color: #4caf50;
+      box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.2);
+    }
+    input.error-input {
+      border: 2px solid #e74c3c !important;
+      background: rgba(231, 76, 60, 0.1) !important;
+    }
+    .double-booked {
+      background-color: #ffcccc !important;
+      border: 2px solid #e74c3c !important;
+    }
+
+    .readonly-text {
+      display: flex;
+      align-items: center;
+      padding: 8px;
+      background: rgba(0,0,0,0.03);
+      border-radius: 6px;
+      color: #555;
+      min-height: 44px;
+      white-space: pre-wrap;
+      line-height: 1.4;
+      overflow: hidden;
+    }
+
+    /* -------------------------------------
+       CSS: 2クリック配置用UIパーツ
+    -------------------------------------- */
+    .schedule-slot {
+      width: 100%;
+      height: 100%;
+      min-height: 32px;
+      padding: 4px 8px;
+      box-sizing: border-box;
+      border: 1px solid rgba(0,0,0,0.15);
+      border-radius: 6px;
+      background: rgba(255,255,255,0.8);
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      font-size: 0.9rem;
+    }
+    .schedule-slot:hover {
+      box-shadow: 0 0 5px rgba(0,0,0,0.2);
+    }
+    .student-card {
+      padding: 8px 16px;
+      background: white;
+      border: 2px solid #3498db;
+      border-radius: 8px;
+      cursor: pointer;
+      white-space: nowrap;
+      font-weight: bold;
+      color: #3498db;
+      transition: all 0.2s;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+      flex-shrink: 0;
+    }
+    .student-card:hover {
+      background: #eaf2f8;
+    }
+    .student-card.selected {
+      background: #3498db;
+      color: white;
+      box-shadow: 0 4px 10px rgba(52, 152, 219, 0.4);
+      transform: translateY(-2px);
+    }
+    .condition-mismatch, .adjacent-sibling {
+      background: rgba(231, 76, 60, 0.2) !important;
+      border-color: #e74c3c !important;
+      cursor: not-allowed !important;
+    }
+    .sibling-here {
+      background: rgba(46, 204, 113, 0.3) !important;
+      border-color: #27ae60 !important;
+      cursor: not-allowed !important;
+    }
+    .selectable-slot {
+      background: rgba(52, 152, 219, 0.1);
+      border: 2px dashed #3498db;
+    }
+    .selectable-slot:hover {
+      background: rgba(52, 152, 219, 0.2);
+    }
+    .double-booked-slot {
+      background-color: #ffcccc !important;
+      border: 2px solid #e74c3c !important;
+    }
+
+    /* -------------------------------------
+       CSS: Buttons & Footer
+    -------------------------------------- */
+    .btn-container {
+      display: flex;
+      justify-content: flex-end;
+      padding-top: 15px;
+    }
+    .save-btn {
+      padding: 12px 30px;
+      background: #3498db;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 1.1rem;
+      font-family: inherit;
+      font-weight: bold;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      box-shadow: 0 4px 10px rgba(52, 152, 219, 0.3);
+    }
+    .save-btn:hover {
+      background: #2980b9;
+      transform: translateY(-2px);
+      box-shadow: 0 6px 15px rgba(52, 152, 219, 0.4);
+    }
+
+    footer {
+      padding: 15px 30px;
+      background: rgba(255, 255, 255, 0.3);
+      border-top: 1px solid rgba(255, 255, 255, 0.5);
+      text-align: right;
+    }
+    .danger-btn {
+      padding: 8px 16px;
+      background: transparent;
+      color: #e74c3c;
+      border: 1px solid #e74c3c;
+      border-radius: 6px;
+      cursor: pointer;
+      font-family: inherit;
+      transition: 0.2s;
+    }
+    .danger-btn:hover {
+      background: #e74c3c;
+      color: white;
+    }
+    
+    /* 同期ステータス表示 */
+    .sync-status {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 0.8rem;
+      font-weight: bold;
+      margin-right: 10px;
+      transition: all 0.3s;
+    }
+    .sync-status.synced {
+      background: rgba(46, 204, 113, 0.2);
+      color: #27ae60;
+    }
+    .sync-status.syncing {
+      background: rgba(230, 126, 34, 0.2);
+      color: #e67e22;
+    }
+    .sync-status.error {
+      background: rgba(231, 76, 60, 0.2);
+      color: #e74c3c;
+    }
+    .sync-status.offline {
+      background: rgba(149, 165, 166, 0.2);
+      color: #95a5a6;
+    }
+    .sync-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: currentColor;
+    }
+    .sync-status.syncing .sync-dot {
+      animation: pulse 1s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+
+    @media (max-width: 768px) {
+      .app-container { height: 95vh; width: 100%; border-radius: 0; }
+      header { flex-direction: column; gap: 10px; }
+      .class-box { min-width: 280px; }
+    }
+
+    /* -------------------------------------
+       CSS: Print
+    -------------------------------------- */
+    @media print {
+      @page { size: A4 portrait; margin: 10mm; }
+      body { background: none !important; color: black !important; }
+      .app-container { width: 100% !important; max-width: none !important; height: auto !important; background: none !important; box-shadow: none !important; border: none !important; backdrop-filter: none !important; -webkit-backdrop-filter: none !important; display: block !important; padding: 0 !important; }
+      header, .tabs, #tab-config, #tab-settings, #tab-conditions, footer { display: none !important; }
+      main { overflow: visible !important; display: block !important; }
+      .tab-content { position: static !important; opacity: 1 !important; display: none !important; padding: 0 !important; }
+      #tab-schedule.active { display: block !important; }
+      #print-schedule-title { display: block !important; margin: 0 0 15px 0 !important; text-align: center; font-size: 16pt; font-weight: bold; color: black; }
+      .schedule-wrapper { overflow: visible !important; background: none !important; border: none !important; padding: 0 !important; }
+      .schedule-wrapper table { width: 100% !important; min-width: 100% !important; table-layout: fixed !important; word-wrap: break-word !important; overflow-wrap: break-word !important; }
+      .schedule-wrapper th, .schedule-wrapper td { position: static !important; border: 1px solid #000 !important; padding: 2px !important; width: auto !important; min-width: 0 !important; max-width: none !important; font-size: 8pt !important; color: black !important; background: none !important; white-space: normal !important; word-break: break-word !important; }
+      .schedule-wrapper input[type="text"] { border: none !important; background: none !important; padding: 0 !important; font-size: 8pt !important; color: black !important; box-shadow: none !important; }
+      .schedule-wrapper .schedule-slot { border: none !important; background: none !important; padding: 0 !important; box-shadow: none !important; min-height: 0 !important; height: auto !important; display: block !important; text-align: center !important; white-space: nowrap !important; overflow: hidden !important; text-overflow: ellipsis !important; font-size: 8pt !important; line-height: 1.2 !important; }
+      .schedule-wrapper input::placeholder { color: transparent !important; }
+      .schedule-wrapper .readonly-text { background: none !important; color: black !important; font-size: 6pt !important; padding: 0 !important; font-weight: normal !important; min-height: 0 !important; display: block !important; white-space: pre !important; overflow: hidden !important; line-height: 1.3 !important; }
+      .schedule-wrapper th { font-weight: bold !important; text-align: center !important; }
+      /* 印刷時：本文（時刻行）のマスの縦幅を一定にする（名前の有無・行数で高さが変わらないように） */
+      .schedule-wrapper tbody td { height: 13mm !important; vertical-align: middle !important; }
+      /* 印刷時：時刻列（各行の先頭マス）を横中央揃えに */
+      .schedule-wrapper tbody td:first-child { text-align: center !important; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- クラウド同期中のローディング画面 -->
+  <div id="global-loading" style="position: fixed; inset: 0; background: rgba(255,255,255,0.9); z-index: 9999; display: flex; flex-direction: column; justify-content: center; align-items: center; backdrop-filter: blur(5px);">
+    <div style="border: 4px solid #f3f3f3; border-top: 4px solid #4caf50; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite;"></div>
+    <p style="margin-top: 15px; color: #2c3e50; font-weight: bold; font-family: 'M PLUS Rounded 1c', sans-serif;">クラウドと同期中...</p>
+    <style>@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }</style>
+  </div>
+
+  <div class="app-container">
+    <header>
+      <div style="display: flex; align-items: center;">
+        <h1>🏠 家庭訪問・個人懇談 日程調整</h1>
+        <select id="schedule-class-select" style="font-size: 1rem; padding: 4px 8px; margin-left: 20px; display: none; width: auto; font-weight: bold; border: 2px solid rgba(0,0,0,0.2);" onchange="handleClassChange()">
+        </select>
+      </div>
+      <div class="tabs">
+        <button type="button" class="tab-btn" data-target="tab-config">設定</button>
+        <button type="button" class="tab-btn active" data-target="tab-settings">名簿</button>
+        <button type="button" class="tab-btn" data-target="tab-conditions">条件</button>
+        <button type="button" class="tab-btn" data-target="tab-schedule">日程表</button>
+      </div>
+    </header>
+
+    <main>
+      <!-- タブ0: 設定 -->
+      <section id="tab-config" class="tab-content">
+        <div style="padding: 20px; max-width: 500px; margin: 0 auto; background: rgba(255,255,255,0.6); border-radius: 12px; border: 1px solid rgba(255,255,255,0.8); overflow-y: auto; max-height: 100%; box-sizing: border-box; width: 100%;">
+          <h2 style="color: #2c3e50; margin-top: 0; border-bottom: 2px solid rgba(0,0,0,0.1); padding-bottom: 10px;">クラスの追加・管理</h2>
+          
+          <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 20px;">
+            <input type="number" id="new-class-year" placeholder="年" min="1" max="6" style="width: 80px;">
+            <span>年</span>
+            <input type="number" id="new-class-num" placeholder="組" min="1" max="10" style="width: 80px;">
+            <span>組</span>
+            <button type="button" class="tab-btn" style="padding: 8px 20px; font-size: 1rem;" onclick="addNewClass()">➕ 追加</button>
+          </div>
+
+          <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 20px;">
+            <span style="font-weight: bold; color: #34495e;">特別支援学級</span>
+            <input type="text" id="new-special-class-char" placeholder="A, B..." style="width: 80px; text-transform: uppercase;" maxlength="1">
+            <button type="button" class="tab-btn" style="padding: 8px 20px; font-size: 1rem;" onclick="addSpecialClass()">➕ 追加</button>
+          </div>
+
+          <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 20px;">
+            <span style="font-weight: bold; color: #34495e;">通級学級</span>
+            <label style="display: flex; align-items: center; cursor: pointer; margin-left: 10px;">
+              <input type="checkbox" id="resource-room-toggle" onchange="toggleResourceRoom(this.checked)" style="width: auto; margin-right: 8px; transform: scale(1.3);">
+              <span>あり</span>
+            </label>
+          </div>
+
+          <h3 style="color: #34495e; font-size: 1.1rem; margin-bottom: 10px;">登録済みのクラス</h3>
+          <div id="config-class-list" style="display: flex; flex-direction: column; gap: 8px; padding-bottom: 10px;">
+          </div>
+
+          <div style="margin-top: 10px; padding-top: 15px; border-top: 1px dashed #ccc;">
+            <h3 style="color: #34495e; font-size: 1.1rem; margin-bottom: 10px;">時間枠の設定</h3>
+            <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+              開始: <input type="time" id="config-start-time" style="width: 100px;">
+              終了: <input type="time" id="config-end-time" style="width: 100px;">
+              間隔: <input type="number" id="config-interval" style="width: 60px;">分
+              <button type="button" class="danger-btn" style="padding: 6px 15px; font-size: 0.9rem;" onclick="applyTimeConfig()">適用 (※日程表がリセットされます)</button>
+            </div>
+          </div>
+
+          <div style="margin-top: 15px; padding-top: 15px; border-top: 1px dashed #ccc;">
+            <h3 style="color: #34495e; font-size: 1.1rem; margin-bottom: 10px;">日付の設定</h3>
+            <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;" id="date-config-container">
+            </div>
+          </div>
+
+          <div style="margin-top: 15px; padding-top: 15px; border-top: 1px dashed #ccc;">
+            <h3 style="color: #34495e; font-size: 1.1rem; margin-bottom: 10px;">パスワードの設定</h3>
+            <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+              <input type="password" id="new-password-input" placeholder="新しいパスワード" style="width: 150px;">
+              <button type="button" class="tab-btn" style="padding: 6px 15px; font-size: 0.9rem;" onclick="changePassword()">変更</button>
+            </div>
+          </div>
+
+          <div style="margin-top: 30px; padding-top: 15px; border-top: 2px solid #e67e22;">
+            <h3 style="color: #c0392b; font-size: 1.1rem; margin-bottom: 10px;">⚠️ 日程表と条件の初期化</h3>
+            <p style="color: #666; font-size: 0.85rem; margin-bottom: 10px;">
+              全クラスの<strong>日程表と条件</strong>を空にします。<br>
+              （名簿はそのまま残ります。家庭訪問が終わった後、個人懇談の準備をする際などに使ってください。）<br>
+              <strong style="color:#c0392b;">※ 念のため、事前に「日程表をエクスポート」しておくことをおすすめします。</strong><br>
+              この操作はクラウドにも反映され、取り消せません。
+            </p>
+            <button type="button" class="danger-btn" onclick="resetScheduleAndConditions()">🔄 日程表と条件をまとめて初期化</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- タブ1: 名簿 -->
+      <section id="tab-settings" class="tab-content active">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+          <div style="color: #555; font-size: 0.9rem;">
+            💡 兄弟情報は <strong>「◯年」「◯組」「名前」</strong> に分けて入力してください。保存時に自動で相互リンクされます。
+          </div>
+          <div style="display: flex; gap: 10px; align-items: center;">
+            <button type="button" class="tab-btn" style="padding: 8px 16px; font-size: 0.95rem; background: #ecf5fb; color: #2980b9;" onclick="exportSettingsToExcel()">📥 エクスポート</button>
+            <button type="button" class="tab-btn" style="padding: 8px 16px; font-size: 0.95rem; background: #fef5e7; color: #d35400;" onclick="document.getElementById('import-file-input').click()">📤 インポート</button>
+            <input type="file" id="import-file-input" accept=".xlsx,.xls" style="display: none;" onchange="importSettingsFromExcel(event)">
+            <button type="button" class="save-btn" style="padding: 8px 20px; font-size: 1rem;" onclick="saveSettings()">💾 設定を保存して反映</button>
+          </div>
+        </div>
+        
+        <div class="settings-wrapper" id="settings-wrapper">
+        </div>
+      </section>
+
+      <!-- タブ条件: 条件 -->
+      <section id="tab-conditions" class="tab-content">
+        <div class="schedule-wrapper" style="height: 100%;">
+        </div>
+      </section>
+
+      <!-- タブ2: 日程表 -->
+      <section id="tab-schedule" class="tab-content">
+        <h2 id="print-schedule-title" style="display: none;"></h2>
+        <div class="schedule-wrapper">
+          <table style="width: 1500px; table-layout: fixed;">
+            <thead>
+              <tr id="schedule-header-row1"></tr>
+              <tr id="schedule-header-row2"></tr>
+            </thead>
+            <tbody id="schedule-tbody"></tbody>
+          </table>
+          <div style="color: #555; font-size: 0.9rem; margin: 15px; padding: 10px; background: rgba(255,255,255,0.7); border-radius: 8px;">
+            💡 下部の「児童カード」をクリックして選択し、日程表の空き枠をクリックして配置してください。<br>
+            💡 配置済みの枠をクリックすると移動モード（青色）になります。別の枠をクリックで移動、同じ枠をもう一度クリックで配置解除します。<br>
+            💡 <span style="color: #e74c3c;">赤色</span>の枠は、条件外または移動時間が確保できない枠です。<br>
+            💡 <span style="color: #27ae60;">緑色</span>の枠は、兄弟が既に配置されている時間帯です。
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <button type="button" class="tab-btn" style="padding: 6px 15px; font-size: 0.9rem; background: #fff; border: 1px solid #ccc; color: #333; margin-right: 12px;" onclick="window.print()">🖨️ 印刷</button>
+      <button type="button" class="tab-btn" style="padding: 6px 15px; font-size: 0.9rem; background: #d4ebd3; color: #2e6029; margin-right: 8px;" onclick="exportCurrentClassScheduleToExcel()">📥 このクラスのみエクスポート</button>
+      <button type="button" class="tab-btn" style="padding: 6px 15px; font-size: 0.9rem; background: #ecf5fb; color: #2980b9; margin-right: 8px;" onclick="exportScheduleToExcel()">📥 全クラスをエクスポート</button>
+      <button type="button" class="tab-btn" style="padding: 6px 15px; font-size: 0.9rem; background: #fef5e7; color: #d35400; margin-right: 20px;" onclick="document.getElementById('schedule-import-input').click()">📤 日程表をインポート</button>
+      <input type="file" id="schedule-import-input" accept=".xlsx,.xls" style="display: none;" onchange="importScheduleFromExcel(event)">
+      <span id="sync-status" class="sync-status offline"><span class="sync-dot"></span><span id="sync-status-text">未接続</span></span>
+      <button type="button" id="sync-btn" onclick="manualSync()" style="padding: 10px 24px; background: #e67e22; color: white; border: none; border-radius: 8px; font-size: 1.1rem; font-weight: bold; font-family: inherit; cursor: pointer; box-shadow: 0 4px 10px rgba(230, 126, 34, 0.4); margin-right: 20px; transition: opacity 0.2s;">☁️ 同期</button>
+      <button type="button" id="auth-btn" onclick="openAuthModal()" style="padding: 8px 16px; background: white; color: #333; margin-right: 10px;">ログイン</button>
+    </footer>
+  </div>
+
+  <!-- アカウント設定モーダル -->
+  <div class="modal-overlay" id="auth-modal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); justify-content: center; align-items: center; z-index: 1000; backdrop-filter: blur(4px);">
+    <div class="modal-content" style="background: white; padding: 30px; border-radius: 20px; width: 90%; max-width: 400px; box-shadow: 0 10px 25px rgba(0,0,0,0.2);">
+      <h2 style="margin-top: 0; color: #2c3e50;">ログイン</h2>
+      <p style="font-size: 0.85rem; color: #666; margin-bottom: 20px;">
+        メールアドレスを登録すると、別のパソコンやスマホからでも同じデータにアクセスできるようになります。
+      </p>
+      <div style="margin-bottom: 15px;">
+        <label style="display: block; font-size: 0.8rem; margin-bottom: 5px;">メールアドレス</label>
+        <input type="email" id="auth-email" placeholder="example@mail.com" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box;">
+      </div>
+      <div style="margin-bottom: 20px;">
+        <label style="display: block; font-size: 0.8rem; margin-bottom: 5px;">パスワード</label>
+        <input type="password" id="auth-pw" placeholder="6文字以上" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box;">
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 15px; align-items: center;">
+        <button type="button" class="save-btn" style="width: 100%; background: #d4ebd3; color: #2e6029;" onclick="handleLogin()">ログインする</button>
+        <button type="button" onclick="handleSignUp()" style="background: none; border: none; color: #666; text-decoration: underline; cursor: pointer; font-size: 0.9rem; font-family: inherit;">アカウントをお持ちでない方（新規登録）</button>
+      </div>
+      <button type="button" onclick="closeAuthModal()" style="width: 100%; margin-top: 15px; border: none; background: none; color: #aaa; cursor: pointer; font-size: 0.9rem;">閉じる</button>
+    </div>
+  </div>
+
+  <!-- パスワード設定モーダル -->
+  <div class="modal-overlay" id="password-modal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); justify-content: center; align-items: center; z-index: 1000; backdrop-filter: blur(4px);">
+    <div class="modal-content" style="background: white; padding: 30px; border-radius: 20px; width: 90%; max-width: 300px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); text-align: center;">
+      <h2 style="margin-top: 0; color: #2c3e50;">パスワード入力</h2>
+      <p style="font-size: 0.85rem; color: #666; margin-bottom: 20px;">
+        このタブは編集制限がかかっています。
+      </p>
+      <input type="password" id="auth-password-input" placeholder="パスワード" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; margin-bottom: 20px; text-align: center; font-size: 1.2rem;">
+      <div style="display: flex; gap: 10px; justify-content: center;">
+        <button type="button" class="save-btn" style="flex: 1; padding: 10px; background: #3498db; font-size: 1rem;" onclick="checkPassword()">解除</button>
+        <button type="button" style="flex: 1; padding: 10px; border: 1px solid #ccc; background: white; border-radius: 8px; cursor: pointer; font-size: 1rem; color: #333;" onclick="document.getElementById('password-modal').style.display='none'; pendingTabTarget = null;">キャンセル</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    /* =============================================
+       アプリ本体（UIロジック）
+       - Firebase同期部分は末尾に分離
+    ============================================= */
+
+    const STORAGE_KEY_SETTINGS = 'homeVisitSettingsData_v2'; 
+    const STORAGE_KEY_SCHEDULE = 'homeVisitScheduleData_v3';
+    const STORAGE_KEY_NO_VISIT = 'homeVisitNoVisitData_v1';
+    const STORAGE_KEY_CONDITIONS = 'homeVisitConditionsData_v1';
+    const STORAGE_KEY_TIME = 'homeVisitTimeConfig_v1';
+    const STORAGE_KEY_DATE = 'homeVisitDateConfig_v1';
+    
+    let classNames = ["1年1組", "2年1組", "3年1組", "4年1組", "5年1組", "6年1組"];
+    const maxStudentsPerClass = 40;
+    
+    let timeConfig = { start: "13:30", end: "17:00", interval: 10 };
+    let dateConfig = ["", "", "", "", ""];
+    const timeSlots = [];
+
+    function generateTimeSlots() {
+      timeSlots.length = 0;
+      const [sH, sM] = timeConfig.start.split(':').map(Number);
+      const [eH, eM] = timeConfig.end.split(':').map(Number);
+      let curMins = sH * 60 + sM;
+      const endMins = eH * 60 + eM;
+      while (curMins <= endMins) {
+        const h = Math.floor(curMins / 60);
+        const m = curMins % 60;
+        timeSlots.push(`${h}:${m.toString().padStart(2, '0')}`);
+        curMins += timeConfig.interval;
+      }
+    }
+
+    let settingsData = {};
+    let scheduleData = {}; 
+    let noVisitData = {};
+    let conditionsData = {};
+    
+    let selectedPlacement = null;
+
+    let isSettingsUnlocked = false;
+    const STORAGE_KEY_PASSWORD = 'homeVisitSettingsPassword_v1';
+    let settingsPassword = localStorage.getItem(STORAGE_KEY_PASSWORD) || "1234";
+    let pendingTabTarget = null;
+
+    const soundSuccess = new Audio('https://actions.google.com/sounds/v1/cartoon/pop.ogg');
+    const soundError = new Audio('https://actions.google.com/sounds/v1/alarms/beep_short.ogg');
+
+    /* -------------------------------------
+       初期化処理
+    -------------------------------------- */
+    function init() {
+      const savedTime = localStorage.getItem(STORAGE_KEY_TIME);
+      if (savedTime) timeConfig = JSON.parse(savedTime);
+      const savedDate = localStorage.getItem(STORAGE_KEY_DATE);
+      if (savedDate) dateConfig = JSON.parse(savedDate);
+      
+      generateTimeSlots();
+
+      const savedSettings = localStorage.getItem(STORAGE_KEY_SETTINGS);
+      if (savedSettings) {
+        settingsData = JSON.parse(savedSettings);
+        classNames = Object.keys(settingsData);
+        sortClassNames();
+      } else {
+        classNames.forEach(cls => {
+          settingsData[cls] = generateEmptyClass();
+        });
+      }
+
+      const savedConditions = localStorage.getItem(STORAGE_KEY_CONDITIONS);
+      if (savedConditions) conditionsData = JSON.parse(savedConditions);
+
+      const savedNoVisit = localStorage.getItem(STORAGE_KEY_NO_VISIT);
+      if (savedNoVisit) noVisitData = JSON.parse(savedNoVisit);
+      classNames.forEach(cls => {
+         if (!noVisitData[cls]) noVisitData[cls] = [""];
+      });
+
+      const savedSchedule = localStorage.getItem(STORAGE_KEY_SCHEDULE);
+      if (savedSchedule) {
+        scheduleData = JSON.parse(savedSchedule);
+        classNames.forEach(cls => {
+          if (!scheduleData[cls]) {
+            scheduleData[cls] = generateEmptySchedule();
+          } else {
+            for(let d = 0; d < 5; d++){
+              if (!scheduleData[cls][d]) scheduleData[cls][d] = [];
+              while(scheduleData[cls][d].length < timeSlots.length) {
+                scheduleData[cls][d].push({ time: timeSlots[scheduleData[cls][d].length], studentName: "", siblings: "" });
+              }
+            }
+          }
+        });
+      } else {
+        classNames.forEach(cls => {
+          scheduleData[cls] = generateEmptySchedule();
+        });
+      }
+
+      renderTimeDateConfig();
+      updateScheduleClassSelect();
+      setupDatalist();
+      renderSettings();
+      
+      classNames.forEach(cls => {
+        if (settingsData[cls]) {
+          settingsData[cls].forEach(student => {
+            if (student.name.trim()) syncNoVisitForStudent(cls, student.name.trim());
+          });
+        }
+      });
+
+      updateScheduleSiblings();
+      renderConditions();
+      setupTabs();
+
+      document.querySelector('[data-target="tab-schedule"]').click();
+    }
+
+    function sortClassNames() {
+      classNames.sort((a, b) => {
+        const matchA = a.match(/(\d+)年(\d+)組/);
+        const matchB = b.match(/(\d+)年(\d+)組/);
+        if(matchA && matchB) {
+          if(matchA[1] !== matchB[1]) return parseInt(matchA[1]) - parseInt(matchB[1]);
+          return parseInt(matchA[2]) - parseInt(matchB[2]);
+        } else if (matchA) return -1;
+        else if (matchB) return 1;
+        else {
+          const weightA = a === "通級学級" ? 2 : (a.startsWith("特別支援") ? 1 : 0);
+          const weightB = b === "通級学級" ? 2 : (b.startsWith("特別支援") ? 1 : 0);
+          if (weightA !== weightB) return weightA - weightB;
+          return a.localeCompare(b);
+        }
+      });
+    }
+
+    function generateEmptyClass() {
+      let arr = [];
+      for(let i = 1; i <= maxStudentsPerClass; i++) {
+        arr.push({ number: i, name: "", sibYear: "", sibClass: "", sibName: "", isSpecial: false, isResource: false });
+      }
+      return arr;
+    }
+
+    function generateEmptySchedule() {
+      let schedule = [];
+      for(let d = 0; d < 5; d++){
+        let daySlots = [];
+        timeSlots.forEach(time => {
+          daySlots.push({ time: time, studentName: "", siblings: "" });
+        });
+        schedule.push(daySlots);
+      }
+      return schedule;
+    }
+    
+    function getCondition(cls, name) {
+      if (!conditionsData[cls]) conditionsData[cls] = {};
+      if (!conditionsData[cls][name]) {
+        conditionsData[cls][name] = {
+          daily: [
+            { active: true, timeStart: "", timeEnd: "", order: "none" },
+            { active: true, timeStart: "", timeEnd: "", order: "none" },
+            { active: true, timeStart: "", timeEnd: "", order: "none" },
+            { active: true, timeStart: "", timeEnd: "", order: "none" },
+            { active: true, timeStart: "", timeEnd: "", order: "none" }
+          ]
+        };
+      } else if (conditionsData[cls][name].days) {
+        const old = conditionsData[cls][name];
+        conditionsData[cls][name] = {
+          daily: old.days.map((active, i) => ({
+            active: active, timeStart: old.timeStart || "", timeEnd: old.timeEnd || "", order: old.order || "none"
+          }))
+        };
+      }
+      return conditionsData[cls][name];
+    }
+
+    /* -------------------------------------
+       特別支援学級・通級学級のメンバー解決
+       - 特支/通級クラスには専用の名簿が無く、実体は原学級（○年○組）名簿の
+         「特支」「通級」チェックとして入っている。
+       - ここで原学級を横断して所属児童を集め、日程表で配置できるようにする。
+    -------------------------------------- */
+    function isSpecialOrResourceClass(cls) {
+      return cls.startsWith("特別支援学級") || cls === "通級学級";
+    }
+
+    /* 特支/通級クラス cls に所属する児童を原学級から集める。
+       戻り値: [{ name, originClass }]（原学級のクラス順・名簿順、同名は最初の1件のみ） */
+    function getSpecialClassMembers(cls) {
+      const isSpecialClass = cls.startsWith("特別支援学級");
+      const isResourceClass = (cls === "通級学級");
+      if (!isSpecialClass && !isResourceClass) return [];
+      const members = [];
+      const seen = new Set();
+      classNames.forEach(oc => {
+        if (!/^\d+年\d+組$/.test(oc)) return;   // 原学級（通常学級）のみを対象
+        if (!settingsData[oc]) return;
+        settingsData[oc].forEach(s => {
+          const nm = (s.name || '').trim();
+          if (!nm) return;
+          const hit = isSpecialClass ? s.isSpecial : s.isResource;
+          if (!hit) return;
+          if (seen.has(nm)) return;
+          seen.add(nm);
+          members.push({ name: nm, originClass: oc });
+        });
+      });
+      return members;
+    }
+
+    /* 児童 name の「条件」を引くべきクラスを返す。
+       - 特支/通級クラス表示中は、その子の原学級を返す（原学級の条件を利用するため）。
+       - 通常クラス表示中や原学級が見つからない場合は cls をそのまま返す。 */
+    function getConditionClassFor(cls, name) {
+      if (isSpecialOrResourceClass(cls)) {
+        const member = getSpecialClassMembers(cls).find(m => m.name === name);
+        if (member) return member.originClass;
+      }
+      return cls;
+    }
+
+    /* -------------------------------------
+       時間枠・日付の設定
+    -------------------------------------- */
+    function renderTimeDateConfig() {
+      document.getElementById('config-start-time').value = timeConfig.start;
+      document.getElementById('config-end-time').value = timeConfig.end;
+      document.getElementById('config-interval').value = timeConfig.interval;
+
+      const container = document.getElementById('date-config-container');
+      if (!container) return;
+      container.innerHTML = '';
+      for(let d=0; d<5; d++) {
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.placeholder = `${d+1}日目`;
+        input.value = dateConfig[d] || "";
+        input.style.width = '80px';
+        input.onchange = (e) => {
+          dateConfig[d] = e.target.value;
+          localStorage.setItem(STORAGE_KEY_DATE, JSON.stringify(dateConfig));
+          saveGlobalConfigToCloud();
+          renderSchedule();
+        };
+        container.appendChild(input);
+      }
+    }
+
+    function applyTimeConfig() {
+      if (!confirm("時間枠を変更すると、現在の日程表の入力データがすべてリセットされます。本当によろしいですか？")) return;
+      
+      timeConfig.start = document.getElementById('config-start-time').value;
+      timeConfig.end = document.getElementById('config-end-time').value;
+      timeConfig.interval = parseInt(document.getElementById('config-interval').value, 10) || 10;
+      
+      localStorage.setItem(STORAGE_KEY_TIME, JSON.stringify(timeConfig));
+      generateTimeSlots();
+      
+      classNames.forEach(cls => {
+        scheduleData[cls] = generateEmptySchedule();
+      });
+      saveScheduleData();
+      saveGlobalConfigToCloud();
+      saveAllClassesToCloud();
+      renderSchedule();
+    }
+
+    /* -------------------------------------
+       クラス選択プルダウン
+    -------------------------------------- */
+    function updateScheduleClassSelect() {
+      const select = document.getElementById('schedule-class-select');
+      const currentVal = select.value;
+      select.innerHTML = classNames.map(c => `<option value="${c}">${c}</option>`).join('');
+      if (classNames.includes(currentVal)) select.value = currentVal;
+      else if (classNames.length > 0) select.value = classNames[0];
+    }
+    
+    function handleClassChange() {
+      const activeTab = document.querySelector('.tab-btn.active');
+      if (activeTab) {
+        const targetId = activeTab.dataset.target;
+        selectedPlacement = null;
+        if (targetId === 'tab-schedule') renderSchedule();
+        if (targetId === 'tab-conditions') renderConditions();
+      }
+    }
+
+    /* -------------------------------------
+       クラス追加処理
+    -------------------------------------- */
+    function addNewClass() {
+      const year = document.getElementById('new-class-year').value;
+      const num = document.getElementById('new-class-num').value;
+      if (!year || !num) { alert("追加する「年」と「組」を入力してください。"); return; }
+      const newCls = `${year}年${num}組`;
+      if (classNames.includes(newCls)) { alert("そのクラスはすでに存在します。"); return; }
+      syncDOMtoSettings();
+      classNames.push(newCls);
+      sortClassNames();
+      settingsData[newCls] = generateEmptyClass();
+      scheduleData[newCls] = generateEmptySchedule();
+      noVisitData[newCls] = [""];
+      saveAllLocal();
+      document.getElementById('new-class-year').value = '';
+      document.getElementById('new-class-num').value = '';
+      updateScheduleClassSelect();
+      renderSettings();
+      renderSchedule();
+      saveClassToCloud(newCls);
+      saveGlobalConfigToCloud();
+    }
+
+    function addSpecialClass() {
+      let char = document.getElementById('new-special-class-char').value.trim().toUpperCase();
+      if (!char) { alert("A, B, Cなどのアルファベットを入力してください。"); return; }
+      const newCls = `特別支援学級${char}`;
+      if (classNames.includes(newCls)) { alert("そのクラスはすでに存在します。"); return; }
+      syncDOMtoSettings();
+      classNames.push(newCls);
+      sortClassNames();
+      settingsData[newCls] = generateEmptyClass();
+      scheduleData[newCls] = generateEmptySchedule();
+      noVisitData[newCls] = [""];
+      saveAllLocal();
+      document.getElementById('new-special-class-char').value = '';
+      updateScheduleClassSelect();
+      renderSettings();
+      renderSchedule();
+      saveClassToCloud(newCls);
+      saveGlobalConfigToCloud();
+    }
+
+    function toggleResourceRoom(isChecked) {
+      const clsName = "通級学級";
+      if (isChecked) {
+        if (!classNames.includes(clsName)) {
+          syncDOMtoSettings();
+          classNames.push(clsName);
+          sortClassNames();
+          settingsData[clsName] = generateEmptyClass();
+          scheduleData[clsName] = generateEmptySchedule();
+          noVisitData[clsName] = [""];
+          saveAllLocal();
+          updateScheduleClassSelect();
+          renderSettings();
+          renderSchedule();
+          saveClassToCloud(clsName);
+          saveGlobalConfigToCloud();
+        }
+      } else {
+        if (classNames.includes(clsName)) {
+          if (confirm(`本当に「${clsName}」を削除しますか？\n入力されているデータもすべて消去されます。`)) {
+            syncDOMtoSettings();
+            classNames = classNames.filter(c => c !== clsName);
+            delete settingsData[clsName];
+            delete scheduleData[clsName];
+            delete noVisitData[clsName];
+            saveAllLocal();
+            updateScheduleClassSelect();
+            renderSettings();
+            renderSchedule();
+            deleteClassFromCloud(clsName);
+            saveGlobalConfigToCloud();
+          } else {
+            document.getElementById('resource-room-toggle').checked = true;
+          }
+        }
+      }
+    }
+
+    function deleteClass(clsToRemove) {
+      if (confirm(`本当に「${clsToRemove}」を削除しますか？\n入力されているデータもすべて消去されます。`)) {
+        syncDOMtoSettings();
+        classNames = classNames.filter(c => c !== clsToRemove);
+        delete settingsData[clsToRemove];
+        delete scheduleData[clsToRemove];
+        delete noVisitData[clsToRemove];
+        saveAllLocal();
+        updateScheduleClassSelect();
+        renderSettings();
+        renderSchedule();
+        deleteClassFromCloud(clsToRemove);
+        saveGlobalConfigToCloud();
+      }
+    }
+
+    /* ローカル保存ヘルパー */
+    function saveAllLocal() {
+      localStorage.setItem(STORAGE_KEY_SETTINGS, JSON.stringify(settingsData));
+      localStorage.setItem(STORAGE_KEY_SCHEDULE, JSON.stringify(scheduleData));
+      localStorage.setItem(STORAGE_KEY_NO_VISIT, JSON.stringify(noVisitData));
+    }
+
+    function syncDOMtoSettings() {
+      const nameInputs = document.querySelectorAll('.setting-name');
+      const isSpecialInputs = document.querySelectorAll('.setting-is-special');
+      const isResourceInputs = document.querySelectorAll('.setting-is-resource');
+      const sibYearInputs = document.querySelectorAll('.setting-sib-year');
+      const sibClassInputs = document.querySelectorAll('.setting-sib-class');
+      const sibNameInputs = document.querySelectorAll('.setting-sib-name');
+      
+      nameInputs.forEach((input, i) => {
+        const cls = input.dataset.class;
+        const idx = input.dataset.idx;
+        settingsData[cls][idx].name = input.value;
+        settingsData[cls][idx].isSpecial = isSpecialInputs[i].checked;
+        settingsData[cls][idx].isResource = isResourceInputs[i].checked;
+        settingsData[cls][idx].sibYear = sibYearInputs[i].value;
+        settingsData[cls][idx].sibClass = sibClassInputs[i].value;
+        settingsData[cls][idx].sibName = sibNameInputs[i].value;
+        settingsData[cls][idx].extraSiblings = [];
+      });
+
+      const extraRows = document.querySelectorAll('.extra-sibling-row');
+      extraRows.forEach(row => {
+        const cls = row.dataset.class;
+        const idx = row.dataset.idx;
+        settingsData[cls][idx].extraSiblings.push({
+          sibYear: row.querySelector('.extra-sib-year').value,
+          sibClass: row.querySelector('.extra-sib-class').value,
+          sibName: row.querySelector('.extra-sib-name').value
+        });
+      });
+    }
+
+    function autoSaveSettingsLocal() {
+      syncDOMtoSettings();
+      localStorage.setItem(STORAGE_KEY_SETTINGS, JSON.stringify(settingsData));
+    }
+
+    function addExtraSibling(cls, index) {
+      syncDOMtoSettings();
+      if (!settingsData[cls][index].extraSiblings) settingsData[cls][index].extraSiblings = [];
+      settingsData[cls][index].extraSiblings.push({sibYear: "", sibClass: "", sibName: ""});
+      localStorage.setItem(STORAGE_KEY_SETTINGS, JSON.stringify(settingsData));
+      renderSettings();
+    }
+
+    function removeExtraSibling(cls, index, extIdx) {
+      syncDOMtoSettings();
+      if (settingsData[cls][index].extraSiblings) settingsData[cls][index].extraSiblings.splice(extIdx, 1);
+      localStorage.setItem(STORAGE_KEY_SETTINGS, JSON.stringify(settingsData));
+      renderSettings();
+    }
+
+    function autoFillSibling(inputElem) {
+      const myName = inputElem.value.trim();
+      if (!myName) return;
+      const myClass = inputElem.dataset.class;
+      const myMatch = myClass.match(/^(\d+)年(\d+)組$/);
+      if (!myMatch) return;
+      const myYear = myMatch[1];
+      const myClassNum = myMatch[2];
+      const myRow = inputElem.closest('tr');
+      const sibYearInput = myRow.querySelector('.setting-sib-year');
+      const sibClassInput = myRow.querySelector('.setting-sib-class');
+      const sibNameInput = myRow.querySelector('.setting-sib-name');
+      if (sibYearInput.value || sibClassInput.value || sibNameInput.value) return;
+      syncDOMtoSettings();
+      let foundSiblings = [];
+      for (const cls of classNames) {
+        for (const s of settingsData[cls]) {
+          const sibMatch = cls.match(/^(\d+)年(\d+)組$/);
+          if (!sibMatch) continue;
+          if (s.name.trim() && String(s.sibYear) === String(myYear) && String(s.sibClass) === String(myClassNum) && s.sibName.trim() === myName) {
+            foundSiblings.push({ year: sibMatch[1], classNum: sibMatch[2], name: s.name.trim() });
+          }
+          if (s.name.trim() && s.extraSiblings) {
+            s.extraSiblings.forEach(ext => {
+              if (String(ext.sibYear) === String(myYear) && String(ext.sibClass) === String(myClassNum) && ext.sibName.trim() === myName) {
+                foundSiblings.push({ year: sibMatch[1], classNum: sibMatch[2], name: s.name.trim() });
+              }
+            });
+          }
+        }
+      }
+      if (foundSiblings.length > 0) {
+        sibYearInput.value = foundSiblings[0].year;
+        sibClassInput.value = foundSiblings[0].classNum;
+        sibNameInput.value = foundSiblings[0].name;
+        if (foundSiblings.length > 1) {
+          const cls = inputElem.dataset.class;
+          const idx = inputElem.dataset.idx;
+          if (!settingsData[cls][idx].extraSiblings) settingsData[cls][idx].extraSiblings = [];
+          for(let i = 1; i < foundSiblings.length; i++) {
+            const exists = settingsData[cls][idx].extraSiblings.some(ext => ext.sibYear == foundSiblings[i].year && ext.sibClass == foundSiblings[i].classNum && ext.sibName == foundSiblings[i].name);
+            if (!exists) settingsData[cls][idx].extraSiblings.push({ sibYear: foundSiblings[i].year, sibClass: foundSiblings[i].classNum, sibName: foundSiblings[i].name });
+          }
+          renderSettings();
+        }
+        syncDOMtoSettings();
+      }
+    }
+
+    /* -------------------------------------
+       UI描画: 設定表
+    -------------------------------------- */
+    function renderConfigClasses() {
+      const configList = document.getElementById('config-class-list');
+      if (!configList) return;
+      configList.innerHTML = '';
+      classNames.forEach(cls => {
+        const div = document.createElement('div');
+        div.style.cssText = 'background:rgba(255,255,255,0.8);padding:10px 15px;border-radius:8px;display:flex;justify-content:space-between;align-items:center;border:1px solid rgba(0,0,0,0.1);font-weight:bold;color:#2c3e50;';
+        let html = `<span>${cls}</span>`;
+        if (!cls.endsWith("1組")) html += `<button type="button" class="danger-btn" style="padding: 4px 8px; font-size: 0.8rem;" onclick="deleteClass('${cls}')">削除</button>`;
+        div.innerHTML = html;
+        configList.appendChild(div);
+      });
+      const rrToggle = document.getElementById('resource-room-toggle');
+      if (rrToggle) rrToggle.checked = classNames.includes("通級学級");
+    }
+
+    function renderSettings() {
+      const activeId = document.activeElement ? document.activeElement.id : null;
+      renderConfigClasses();
+      const wrapper = document.getElementById('settings-wrapper');
+      wrapper.innerHTML = '';
+      classNames.forEach(cls => {
+        if (cls.startsWith("特別支援学級") || cls === "通級学級") return;
+        const classBox = document.createElement('div');
+        classBox.className = 'class-box';
+        let headerHtml = `<h3 style="position: sticky; top: -16px; background: rgba(255, 255, 255, 0.95); z-index: 11; margin: -15px -15px 0 -15px; padding: 15px 15px 10px 15px; border-radius: 12px 12px 0 0; border-bottom: 2px solid rgba(0,0,0,0.1);">${cls}`;
+        if (!cls.endsWith("1組")) headerHtml += `<button type="button" class="danger-btn" style="position: absolute; right: 15px; top: 10px; padding: 4px 8px; font-size: 0.8rem;" onclick="deleteClass('${cls}')">削除</button>`;
+        headerHtml += `</h3>`;
+        let html = headerHtml;
+        html += `<table><thead><tr>
+          <th rowspan="2" class="num-col" style="position: sticky; top: 38px; background: rgba(255, 255, 255, 0.95); z-index: 10;">番</th>
+          <th rowspan="2" style="min-width:110px; position: sticky; top: 38px; background: rgba(255, 255, 255, 0.95); z-index: 10;">氏名</th>
+          <th rowspan="2" style="width: 30px; text-align: center; font-size: 0.7rem; position: sticky; top: 38px; background: rgba(255, 255, 255, 0.95); z-index: 10;">特支</th>
+          <th rowspan="2" style="width: 30px; text-align: center; font-size: 0.7rem; position: sticky; top: 38px; background: rgba(255, 255, 255, 0.95); z-index: 10;">通級</th>
+          <th colspan="3" style="text-align:center; border-bottom:1px solid #ddd; position: sticky; top: 38px; background: rgba(255, 255, 255, 0.95); z-index: 10;">兄弟情報</th>
+        </tr><tr>
+          <th style="font-size:0.8rem; text-align:center; position: sticky; top: 71px; background: rgba(255, 255, 255, 0.95); z-index: 10;">年</th>
+          <th style="font-size:0.8rem; text-align:center; position: sticky; top: 71px; background: rgba(255, 255, 255, 0.95); z-index: 10;">組</th>
+          <th style="font-size:0.8rem; position: sticky; top: 71px; background: rgba(255, 255, 255, 0.95); z-index: 10;">名前</th>
+        </tr></thead><tbody>`;
+        settingsData[cls].forEach((student, index) => {
+          html += `<tr class="student-row" data-class="${cls}" data-idx="${index}">
+            <td class="num-col">${student.number}</td>
+            <td><input type="text" id="set-name-${cls}-${index}" value="${student.name}" data-class="${cls}" data-idx="${index}" class="setting-name" onchange="autoFillSibling(this); autoSaveSettingsLocal();"></td>
+            <td style="text-align: center;"><input type="checkbox" id="set-spec-${cls}-${index}" class="setting-is-special" ${student.isSpecial ? 'checked' : ''} data-class="${cls}" data-idx="${index}" style="width: 16px; height: 16px;" onchange="autoSaveSettingsLocal();"></td>
+            <td style="text-align: center;"><input type="checkbox" id="set-res-${cls}-${index}" class="setting-is-resource" ${student.isResource ? 'checked' : ''} data-class="${cls}" data-idx="${index}" style="width: 16px; height: 16px;" onchange="autoSaveSettingsLocal();"></td>
+            <td><input type="number" id="set-siby-${cls}-${index}" value="${student.sibYear || ''}" class="setting-sib-year" style="width: 45px; text-align:center;" min="1" max="6" onchange="autoSaveSettingsLocal();"></td>
+            <td><input type="number" id="set-sibc-${cls}-${index}" value="${student.sibClass || ''}" class="setting-sib-class" style="width: 45px; text-align:center;" min="1" max="10" onchange="autoSaveSettingsLocal();"></td>
+            <td style="display:flex; gap:5px; align-items:center;">
+              <input type="text" id="set-sibn-${cls}-${index}" value="${student.sibName || ''}" class="setting-sib-name" onchange="autoSaveSettingsLocal();">
+              <button type="button" class="tab-btn" style="padding: 2px 8px; font-size: 0.8rem; min-width: 28px;" onclick="addExtraSibling('${cls}', ${index})">＋</button>
+            </td>
+          </tr>`;
+          if (student.extraSiblings && student.extraSiblings.length > 0) {
+            student.extraSiblings.forEach((extSib, extIdx) => {
+              html += `<tr class="extra-sibling-row" data-class="${cls}" data-idx="${index}">
+                <td colspan="4" style="text-align: right; font-size: 0.8rem; color: #888; padding-right: 10px; border-bottom: 1px dashed rgba(0,0,0,0.1);">↳ 追加兄弟</td>
+                <td style="border-bottom: 1px dashed rgba(0,0,0,0.1);"><input type="number" value="${extSib.sibYear || ''}" class="extra-sib-year" style="width: 45px; text-align:center;" min="1" max="6" onchange="autoSaveSettingsLocal();"></td>
+                <td style="border-bottom: 1px dashed rgba(0,0,0,0.1);"><input type="number" value="${extSib.sibClass || ''}" class="extra-sib-class" style="width: 45px; text-align:center;" min="1" max="10" onchange="autoSaveSettingsLocal();"></td>
+                <td style="display:flex; gap:5px; align-items:center; border-bottom: 1px dashed rgba(0,0,0,0.1);">
+                  <input type="text" value="${extSib.sibName || ''}" class="extra-sib-name" onchange="autoSaveSettingsLocal();">
+                  <button type="button" class="danger-btn" style="padding: 2px 8px; font-size: 0.8rem; min-width: 28px;" onclick="removeExtraSibling('${cls}', ${index}, ${extIdx})">－</button>
+                </td>
+              </tr>`;
+            });
+          }
+        });
+        html += `</tbody></table>`;
+        classBox.innerHTML = html;
+        wrapper.appendChild(classBox);
+      });
+      if (activeId) setTimeout(() => { const el = document.getElementById(activeId); if (el) el.focus(); }, 0);
+    }
+
+    /* -------------------------------------
+       UI描画: 条件タブ
+    -------------------------------------- */
+    function renderConditions() {
+      const container = document.querySelector('#tab-conditions > div');
+      if (!container) return;
+      const currentClass = document.getElementById('schedule-class-select').value;
+      if (!currentClass || !settingsData[currentClass]) {
+        container.innerHTML = '<p style="text-align:center; margin-top: 20px;">クラスを選択してください。</p>';
+        return;
+      }
+      let html = `<div style="display: flex; justify-content: flex-end; align-items: center; padding: 8px 12px; background: rgba(255,255,255,0.7); border-radius: 8px; margin-bottom: 8px;">
+        <button type="button" onclick="clearConditionsForCurrentClass()" style="padding: 6px 14px; font-size: 0.9rem; background: #fef5e7; color: #d35400; border: 1px solid #d35400; border-radius: 6px; cursor: pointer; font-family: inherit;">🔄 条件をクリア（${currentClass} 全員）</button>
+      </div>
+      <table style="width: 100%; min-width: 1000px; table-layout: fixed;"><thead><tr>
+        <th style="width: 40px; min-width: 40px; max-width: 40px; text-align: center; border-bottom: 2px solid #ccc; border-right: 2px solid #ccc; position: sticky; top: 0; left: 0; background: #fafafa; z-index: 13; border-top-left-radius: 12px; height: 55px;">番</th>
+        <th style="width: 120px; min-width: 120px; max-width: 120px; text-align: center; border-bottom: 2px solid #ccc; border-right: 2px solid #ccc; position: sticky; top: 0; left: 40px; background: #fafafa; z-index: 13; height: 55px;">氏名</th>`;
+      for(let d=0; d<5; d++) {
+        html += `<th style="text-align: center; border-bottom: 2px solid #ccc; border-right: ${d===4?'none':'2px solid #ccc'}; position: sticky; top: 0; background: #fafafa; z-index: 12; height: 55px; ${d===4?'border-top-right-radius: 12px;':''}">${d+1}日目<br><span style="font-size:0.75rem;font-weight:normal;">${dateConfig[d] || ''}</span></th>`;
+      }
+      html += `</tr></thead><tbody>`;
+      settingsData[currentClass].forEach((student) => {
+        if (!student.name.trim()) return;
+        const cond = getCondition(currentClass, student.name.trim());
+        html += `<tr>
+          <td style="text-align: center; color: #7f8c8d; font-weight: bold; border-bottom: 1px solid #ccc; border-right: 2px solid #ccc; position: sticky; left: 0; background: #fafafa; z-index: 11;">${student.number}</td>
+          <td style="font-weight: bold; border-bottom: 1px solid #ccc; border-right: 2px solid #ccc; position: sticky; left: 40px; background: #fafafa; z-index: 11; min-width: 120px;">${student.name.trim()}</td>`;
+        for(let d=0; d<5; d++){
+          const dCond = cond.daily[d];
+          html += `<td style="border-bottom: 1px solid #ccc; border-right: ${d===4 ? 'none' : '2px solid #ccc'}; padding: 8px; vertical-align: top;">
+            <div style="margin-bottom: 8px;"><label style="cursor: pointer; font-weight: bold; display: inline-flex; align-items: center; color: #2c3e50;">
+              <input type="checkbox" style="width: auto; margin-right: 6px; transform: scale(1.2);" onchange="updateConditionDaily('${currentClass}', '${student.name.trim()}', ${d}, 'active', this.checked)" ${dCond.active ? 'checked' : ''}> 希望する
+            </label></div>
+            <div style="display: flex; flex-direction: column; gap: 6px; ${!dCond.active ? 'opacity: 0.3; pointer-events: none;' : ''}">
+              <div style="display: flex; align-items: center; justify-content: space-between; gap: 2px;">
+                <input type="time" style="width: 48%; padding: 4px; font-size: 0.8rem;" value="${dCond.timeStart || ''}" onchange="updateConditionDaily('${currentClass}', '${student.name.trim()}', ${d}, 'timeStart', this.value)">
+                <span style="font-size: 0.8rem;">〜</span>
+                <input type="time" style="width: 48%; padding: 4px; font-size: 0.8rem;" value="${dCond.timeEnd || ''}" onchange="updateConditionDaily('${currentClass}', '${student.name.trim()}', ${d}, 'timeEnd', this.value)">
+              </div>
+              <select style="padding: 4px; width: 100%; font-size: 0.8rem;" onchange="updateConditionDaily('${currentClass}', '${student.name.trim()}', ${d}, 'order', this.value)">
+                <option value="none" ${dCond.order === 'none' ? 'selected' : ''}>指定なし</option>
+                <option value="first" ${dCond.order === 'first' ? 'selected' : ''}>最初の枠</option>
+                <option value="last" ${dCond.order === 'last' ? 'selected' : ''}>最後の枠</option>
+              </select>
+            </div>
+          </td>`;
+        }
+        html += `</tr>`;
+      });
+      html += `</tbody></table>`;
+      container.innerHTML = html;
+    }
+
+    function syncNoVisitForStudent(cls, name) {
+      const cond = getCondition(cls, name);
+      let allDisabled = true;
+      for (let i = 0; i < 5; i++) { if (cond.daily[i].active) { allDisabled = false; break; } }
+      if (!noVisitData[cls]) noVisitData[cls] = [""];
+      let list = noVisitData[cls].filter(n => n.trim() !== "");
+      const index = list.indexOf(name);
+      let changed = false;
+      if (allDisabled) { if (index === -1) { list.unshift(name); changed = true; } }
+      else { if (index !== -1) { list.splice(index, 1); changed = true; } }
+      if (changed) {
+        if (list.length === 0 || list[list.length - 1].trim() !== "") list.push("");
+        noVisitData[cls] = list;
+        localStorage.setItem(STORAGE_KEY_NO_VISIT, JSON.stringify(noVisitData));
+      }
+    }
+
+    function updateConditionDaily(cls, name, dayIndex, field, value) {
+      const cond = getCondition(cls, name);
+      cond.daily[dayIndex][field] = value;
+      localStorage.setItem(STORAGE_KEY_CONDITIONS, JSON.stringify(conditionsData));
+      if (field === 'active') syncNoVisitForStudent(cls, name);
+      saveClassToCloud(cls);
+      renderSchedule(); 
+      if(field === 'active') renderConditions();
+    }
+
+    /* -------------------------------------
+       設定の保存 & 双方向リンク処理
+    -------------------------------------- */
+
+    /* -------------------------------------
+       Excel エクスポート / インポート
+       - 名簿（settingsData）のみを対象
+       - 各クラスを別シートとして書き出し
+       - インポートは「完全置き換え」
+    -------------------------------------- */
+    function exportSettingsToExcel() {
+      // 現在の入力をDOMから取り込む
+      syncDOMtoSettings();
+
+      if (typeof XLSX === 'undefined') {
+        alert("Excel処理ライブラリの読み込みに失敗しました。インターネット接続を確認してください。");
+        return;
+      }
+
+      const wb = XLSX.utils.book_new();
+
+      // 各クラスを1シートとして書き出し
+      classNames.forEach(cls => {
+        if (cls.startsWith("特別支援学級") || cls === "通級学級") return; // 通常クラスのみ
+        
+        // ヘッダー行
+        const aoa = [
+          ['番号', '氏名', '特支', '通級', '兄弟の年', '兄弟の組', '兄弟の名前', '追加兄弟2_年', '追加兄弟2_組', '追加兄弟2_名前', '追加兄弟3_年', '追加兄弟3_組', '追加兄弟3_名前']
+        ];
+
+        const students = settingsData[cls] || [];
+        students.forEach(s => {
+          const row = [
+            s.number,
+            s.name || '',
+            s.isSpecial ? '○' : '',
+            s.isResource ? '○' : '',
+            s.sibYear || '',
+            s.sibClass || '',
+            s.sibName || ''
+          ];
+          // 追加兄弟（2人目、3人目）
+          for (let i = 0; i < 2; i++) {
+            const ext = s.extraSiblings && s.extraSiblings[i];
+            row.push(ext ? (ext.sibYear || '') : '');
+            row.push(ext ? (ext.sibClass || '') : '');
+            row.push(ext ? (ext.sibName || '') : '');
+          }
+          aoa.push(row);
+        });
+
+        const ws = XLSX.utils.aoa_to_sheet(aoa);
+        // 列幅の指定
+        ws['!cols'] = [
+          { wch: 6 }, { wch: 15 }, { wch: 5 }, { wch: 5 },
+          { wch: 8 }, { wch: 8 }, { wch: 15 },
+          { wch: 8 }, { wch: 8 }, { wch: 15 },
+          { wch: 8 }, { wch: 8 }, { wch: 15 }
+        ];
+
+        // シート名はクラス名（Excelのシート名は最大31文字）
+        let sheetName = cls.substring(0, 31);
+        XLSX.utils.book_append_sheet(wb, ws, sheetName);
+      });
+
+      // 説明シート
+      const descAoa = [
+        ['【使い方】'],
+        ['1. 各シートに児童の名前を入力してください。'],
+        ['2. 「特支」列に「○」を入れると特別支援学級扱いになります。'],
+        ['3. 「通級」列に「○」を入れると通級学級扱いになります。'],
+        ['4. 兄弟がいる場合は「兄弟の年」「兄弟の組」「兄弟の名前」を入力してください。'],
+        ['5. 兄弟が2人以上いる場合は「追加兄弟2」「追加兄弟3」の列も使ってください。'],
+        ['6. 編集後、アプリの「📤 インポート」ボタンからこのファイルを読み込ませてください。'],
+        [''],
+        ['※ 番号(1〜40)の行はそのまま残してください。'],
+        ['※ シート名（例: 1年1組）は変更しないでください。'],
+        ['※ インポートすると現在の名簿は完全に置き換わります。']
+      ];
+      const descWs = XLSX.utils.aoa_to_sheet(descAoa);
+      descWs['!cols'] = [{ wch: 60 }];
+      XLSX.utils.book_append_sheet(wb, descWs, '使い方');
+
+      // ファイル名: 「名簿_2026-04-27.xlsx」のような形式
+      const today = new Date();
+      const dateStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+      XLSX.writeFile(wb, `名簿_${dateStr}.xlsx`);
+    }
+
+    /* -------------------------------------
+       日程表のExcelエクスポート
+       - 全クラスを別シートで出力
+       - 各クラスのシート: 時刻 / 1日目（氏名・兄弟）/ 2日目 / ... / 5日目
+       - 「家庭訪問を希望しない」もシート末尾に出力
+    -------------------------------------- */
+    /* 全クラスの日程表をエクスポート */
+    function exportScheduleToExcel() {
+      exportScheduleCore(null);  // null = 全クラス
+    }
+
+    /* 現在画面に表示中のクラスだけをエクスポート（推奨） */
+    function exportCurrentClassScheduleToExcel() {
+      const currentClass = document.getElementById('schedule-class-select').value;
+      if (!currentClass) {
+        alert("エクスポートするクラスを「日程表」タブで選択してください。");
+        return;
+      }
+      exportScheduleCore(currentClass);
+    }
+
+    /* 内部実装：targetClassがnullなら全クラス、文字列ならそのクラスだけをエクスポート */
+    function exportScheduleCore(targetClass) {
+      if (typeof XLSX === 'undefined') {
+        alert("Excel処理ライブラリの読み込みに失敗しました。インターネット接続を確認してください。");
+        return;
+      }
+
+      // 念のため最新の兄弟情報を再計算
+      classNames.forEach(cls => {
+        if(scheduleData[cls]){
+          for(let d = 0; d < 5; d++){
+            if(scheduleData[cls][d]){
+              scheduleData[cls][d].forEach((item, tIdx) => { if(item) item.siblings = findSiblingSchedules(cls, d, tIdx); });
+            }
+          }
+        }
+      });
+
+      const wb = XLSX.utils.book_new();
+
+      // 対象クラスの一覧
+      const targetClasses = targetClass ? [targetClass] : classNames;
+
+      targetClasses.forEach(cls => {
+        if (!scheduleData[cls]) return;
+
+        // ヘッダー2行構成
+        // 1行目: クラス名表示と日付
+        // 2行目: 時刻 | 1日目氏名 | 1日目兄弟 | 2日目氏名 | ... のような構造
+        const aoa = [];
+
+        // ヘッダー行1（日付）
+        const headerRow1 = ['時刻'];
+        for (let d = 0; d < 5; d++) {
+          headerRow1.push(`${d+1}日目 (${dateConfig[d] || ''})`);
+          headerRow1.push('');  // 兄弟列のために空セル
+        }
+        aoa.push(headerRow1);
+
+        // ヘッダー行2（氏名・兄弟）
+        const headerRow2 = [''];
+        for (let d = 0; d < 5; d++) {
+          headerRow2.push('氏名');
+          headerRow2.push('兄弟（編集不可・自動表示）');
+        }
+        aoa.push(headerRow2);
+
+        // 各時刻ごとの行
+        timeSlots.forEach((time, tIdx) => {
+          const row = [time];
+          for (let d = 0; d < 5; d++) {
+            const item = scheduleData[cls][d] && scheduleData[cls][d][tIdx];
+            row.push(item ? (item.studentName || '') : '');
+            row.push(item ? (item.siblings || '') : '');
+          }
+          aoa.push(row);
+        });
+
+        // 空行
+        aoa.push([]);
+
+        // 「家庭訪問を希望しない」一覧
+        const noVisitList = (noVisitData[cls] || []).filter(n => n.trim() !== '');
+        if (noVisitList.length > 0) {
+          aoa.push(['家庭訪問を希望しない', noVisitList.join('、')]);
+        }
+
+        const ws = XLSX.utils.aoa_to_sheet(aoa);
+
+        // 列幅
+        ws['!cols'] = [
+          { wch: 10 },  // 時刻
+          { wch: 15 }, { wch: 30 },  // 1日目
+          { wch: 15 }, { wch: 30 },  // 2日目
+          { wch: 15 }, { wch: 30 },  // 3日目
+          { wch: 15 }, { wch: 30 },  // 4日目
+          { wch: 15 }, { wch: 30 }   // 5日目
+        ];
+
+        // セル結合：1行目の各日目（氏名と兄弟列を結合）
+        if (!ws['!merges']) ws['!merges'] = [];
+        for (let d = 0; d < 5; d++) {
+          const startCol = 1 + d * 2;
+          ws['!merges'].push({
+            s: { r: 0, c: startCol },
+            e: { r: 0, c: startCol + 1 }
+          });
+        }
+
+        // シート名はクラス名（Excelのシート名は最大31文字）
+        let sheetName = cls.substring(0, 31);
+        XLSX.utils.book_append_sheet(wb, ws, sheetName);
+      });
+
+      // 使い方シート
+      const descAoa = [
+        ['【使い方】'],
+        [''],
+        ['◆ 編集できる場所'],
+        ['  ・各クラスシートの「氏名」列 → 児童の配置を変更したい場合のみ書き換えてください。'],
+        ['  ・「家庭訪問を希望しない」の行 → 名前の追加・変更が可能。'],
+        [''],
+        ['◆ 編集してはいけない場所'],
+        ['  ・「兄弟（編集不可・自動表示）」列 → ここは別クラスの先生が管理するデータです。'],
+        ['     書き換えても、インポート時には無視されます（再計算されます）。'],
+        ['  ・「時刻」列、ヘッダー行（1〜2行目）、シート名、「使い方」シート'],
+        [''],
+        ['◆ インポート時の動作'],
+        ['  ・各クラスシートから「氏名」列だけが読み込まれます。'],
+        ['  ・兄弟情報はインポート後に自動で再計算されます。'],
+        ['  ・名簿（児童一覧）は影響を受けません。'],
+        [''],
+        ['◆ 注意'],
+        ['  ・シート名（例: 4年1組）は変更しないでください。変更すると別クラスとして扱われます。'],
+        ['  ・「使い方」シートは消さないでください（インポート時に自動的に無視されます）。'],
+        ['  ・インポートすると、現在の日程表は完全に置き換わります。']
+      ];
+      const descWs = XLSX.utils.aoa_to_sheet(descAoa);
+      descWs['!cols'] = [{ wch: 70 }];
+      XLSX.utils.book_append_sheet(wb, descWs, '使い方');
+
+      // ファイル名（クラス指定があればクラス名を含める）
+      const today = new Date();
+      const dateStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+      const fileName = targetClass 
+        ? `日程表_${targetClass}_${dateStr}.xlsx`
+        : `日程表_全クラス_${dateStr}.xlsx`;
+      XLSX.writeFile(wb, fileName);
+    }
+
+    /* -------------------------------------
+       日程表のExcelインポート
+       - 各クラスシートから「氏名」列だけを読み取る
+       - 「兄弟」列は完全に無視（自動で再計算する）
+       - 「家庭訪問を希望しない」行も読み取る
+       - 名簿は影響を受けない
+    -------------------------------------- */
+    async function importScheduleFromExcel(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      if (typeof XLSX === 'undefined') {
+        alert("Excel処理ライブラリの読み込みに失敗しました。インターネット接続を確認してください。");
+        event.target.value = '';
+        return;
+      }
+
+      if (!confirm('⚠️ 日程表のインポートを行います。\n\n■ ファイルに含まれているクラスのみが上書きされます。\n■ ファイルに無いクラスは、クラウドの最新データが保持されます。\n■ 「兄弟」列はインポート時には無視され、自動で再計算されます。\n■ 名簿・条件は影響を受けません。\n\n本当によろしいですか？')) {
+        event.target.value = '';
+        return;
+      }
+
+      // 全角→半角変換ヘルパー（時刻の照合に使用）
+      function toHalfWidthDigit(str) {
+        if (str === null || str === undefined) return '';
+        return String(str).replace(/[0-9]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0xFEE0)).trim();
+      }
+      function normalizeName(str) {
+        if (str === null || str === undefined) return '';
+        return String(str).replace(/^[\s\u200B-\u200D\uFEFF]+|[\s\u200B-\u200D\uFEFF]+$/g, '');
+      }
+      // 時刻の表記ゆれを正規化（"13:30" "13：30" "1:30" などに対応）
+      function normalizeTime(str) {
+        if (!str) return '';
+        const s = toHalfWidthDigit(String(str)).replace(/：/g, ':').trim();
+        const m = s.match(/^(\d{1,2}):(\d{1,2})$/);
+        if (!m) return '';
+        return `${parseInt(m[1],10)}:${m[2].padStart(2,'0')}`;
+      }
+
+      const reader = new FileReader();
+      reader.onload = async function(e) {
+        // ロールバック用バックアップ（tryブロックの外で宣言してcatchからも参照可能にする）
+        let backupSchedule = null;
+        let backupNoVisit = null;
+        try {
+          const data = new Uint8Array(e.target.result);
+          const wb = XLSX.read(data, { type: 'array' });
+
+          // ★ 案C: インポート前にクラウドから最新データを読み直す
+          // これにより、他の先生が編集したクラスのデータを保持できる
+          // ※ loadAllFromCloud関数は内部で未ログイン時のチェックを行うので、ここでは関数の存在確認のみ
+          if (typeof loadAllFromCloud === 'function') {
+            try {
+              await loadAllFromCloud();
+            } catch (loadErr) {
+              console.warn("クラウドからの最新データ取得に失敗しました。ローカルのデータで続行します。", loadErr);
+            }
+          }
+
+          // ★ ロールバック用バックアップ（クラウド読み込み後の最新状態を保持）
+          backupSchedule = JSON.parse(JSON.stringify(scheduleData));
+          backupNoVisit = JSON.parse(JSON.stringify(noVisitData));
+
+          // ★ インポート用の新しいデータ：クラウド読み込み後の現在のデータをベースにする
+          // （ファイル内のクラスだけが上書きされ、他のクラスはクラウドの最新が維持される）
+          const newScheduleData = JSON.parse(JSON.stringify(scheduleData));
+          const newNoVisitData = JSON.parse(JSON.stringify(noVisitData));
+          const importedClasses = [];
+
+          // 各シートを処理
+          wb.SheetNames.forEach(sheetName => {
+            // 「使い方」シートは無視
+            if (sheetName === '使い方') return;
+
+            // クラス名として有効か判定
+            const isNormalClass = /^\d+年\d+組$/.test(sheetName);
+            const isSpecialClass = /^特別支援学級/.test(sheetName);
+            const isResourceClass = sheetName === '通級学級';
+            if (!isNormalClass && !isSpecialClass && !isResourceClass) return;
+
+            // 既存の名簿に無いクラスのシートはスキップ（誤った形式の混入防止）
+            if (!classNames.includes(sheetName)) return;
+
+            const ws = wb.Sheets[sheetName];
+            const aoa = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+
+            // ★ ファイルにあるクラスは、まず空状態にしてからファイル内容で上書き
+            // （こうすることで「ファイルから消した児童」の配置が確実に反映される）
+            newScheduleData[sheetName] = generateEmptySchedule();
+            newNoVisitData[sheetName] = [""];
+
+            // 1行目: 日付ヘッダー、2行目: 氏名/兄弟ヘッダー
+            // 3行目以降: 各時刻のデータ
+            // 列構成: [時刻, 1日目氏名, 1日目兄弟, 2日目氏名, 2日目兄弟, ...]
+
+            // 時刻 -> 行番号 のマップを作る（正規化済み時刻でマッチさせる）
+            const timeRowMap = {};
+            for (let r = 2; r < aoa.length; r++) {
+              const row = aoa[r] || [];
+              const t = normalizeTime(row[0]);
+              if (t) timeRowMap[t] = r;
+            }
+
+            // 既存のtimeSlotsに従って氏名列だけを読み取る
+            timeSlots.forEach((time, tIdx) => {
+              const targetTime = normalizeTime(time);
+              const r = timeRowMap[targetTime];
+              if (r === undefined) return;  // この時刻の行がシートにない
+              const row = aoa[r] || [];
+
+              for (let d = 0; d < 5; d++) {
+                const studentName = normalizeName(row[1 + d * 2]);  // 氏名列のみ
+                // 兄弟列(row[2 + d * 2])は読み取らない
+                if (newScheduleData[sheetName][d] && newScheduleData[sheetName][d][tIdx]) {
+                  newScheduleData[sheetName][d][tIdx].studentName = studentName;
+                  newScheduleData[sheetName][d][tIdx].siblings = "";  // 後で再計算
+                }
+              }
+            });
+
+            // 「家庭訪問を希望しない」行を探す
+            for (let r = 2; r < aoa.length; r++) {
+              const row = aoa[r] || [];
+              const cellA = String(row[0] || '').trim();
+              if (cellA.includes('家庭訪問を希望しない') || cellA.includes('希望しない')) {
+                const cellB = normalizeName(row[1]);
+                if (cellB) {
+                  // 「、」「,」「,」で分割
+                  const names = cellB.split(/[、,,]/).map(n => normalizeName(n)).filter(n => n);
+                  newNoVisitData[sheetName] = [...names, ""];
+                } else {
+                  newNoVisitData[sheetName] = [""];
+                }
+                break;
+              }
+            }
+
+            importedClasses.push(sheetName);
+          });
+
+          if (importedClasses.length === 0) {
+            alert("読み込めるシートが見つかりませんでした。\n\nシート名が登録されているクラス名（例: 4年1組）と一致しているか確認してください。\n（名簿に存在しないクラスのシートは無視されます）");
+            event.target.value = '';
+            return;
+          }
+
+          // データを差し替え
+          scheduleData = newScheduleData;
+          noVisitData = newNoVisitData;
+
+          // 兄弟情報を自動で再計算
+          updateScheduleSiblings();
+
+          // ローカル保存
+          localStorage.setItem(STORAGE_KEY_SCHEDULE, JSON.stringify(scheduleData));
+          localStorage.setItem(STORAGE_KEY_NO_VISIT, JSON.stringify(noVisitData));
+
+          // クラウドに全クラス保存
+          if (typeof saveAllClassesToCloud === 'function') {
+            try {
+              await saveAllClassesToCloud();
+            } catch(cloudErr) {
+              console.error("クラウド保存失敗:", cloudErr);
+              // ロールバック
+              scheduleData = backupSchedule;
+              noVisitData = backupNoVisit;
+              localStorage.setItem(STORAGE_KEY_SCHEDULE, JSON.stringify(scheduleData));
+              localStorage.setItem(STORAGE_KEY_NO_VISIT, JSON.stringify(noVisitData));
+              updateScheduleSiblings();
+              alert("クラウドへの保存に失敗したため、データを元に戻しました。\nエラー: " + cloudErr.message);
+              event.target.value = '';
+              return;
+            }
+          }
+
+          // 画面更新
+          renderSchedule();
+
+          alert(`日程表のインポートが完了しました！\n\n読み込んだクラス: ${importedClasses.length}クラス\n${importedClasses.join('、')}\n\n※ 兄弟情報は自動で再計算されました。`);
+        } catch (err) {
+          console.error("インポートエラー:", err);
+          // ロールバック（backupが取得できていれば戻す）
+          if (backupSchedule !== null && backupNoVisit !== null) {
+            scheduleData = backupSchedule;
+            noVisitData = backupNoVisit;
+            renderSchedule();
+            alert("ファイルの読み込みに失敗しました。\nデータは元のままです。\n\nエラー: " + err.message);
+          } else {
+            // クラウド読み込み中などにエラーが起きた場合（データはまだ変更されていないので何もしない）
+            alert("インポートに失敗しました。データは変更されていません。\n\nエラー: " + err.message);
+          }
+        } finally {
+          event.target.value = '';
+        }
+      };
+      reader.onerror = function() {
+        alert("ファイルの読み込みに失敗しました。");
+        event.target.value = '';
+      };
+      reader.readAsArrayBuffer(file);
+    }
+
+    function importSettingsFromExcel(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      if (typeof XLSX === 'undefined') {
+        alert("Excel処理ライブラリの読み込みに失敗しました。インターネット接続を確認してください。");
+        event.target.value = '';
+        return;
+      }
+
+      if (!confirm('⚠️ インポートすると、現在の名簿（全クラス）はすべて置き換わります。\n本当によろしいですか？\n\n※ 日程表・条件のデータには影響しません。')) {
+        event.target.value = '';
+        return;
+      }
+
+      // 全角数字を半角に変換するヘルパー
+      function toHalfWidthDigit(str) {
+        if (str === null || str === undefined) return '';
+        return String(str).replace(/[0-9]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0xFEE0)).trim();
+      }
+      function normalizeName(str) {
+        if (str === null || str === undefined) return '';
+        // 名前は全角・半角の変換はせず、前後空白とゼロ幅文字だけ除去
+        return String(str).replace(/^[\s\u200B-\u200D\uFEFF]+|[\s\u200B-\u200D\uFEFF]+$/g, '');
+      }
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        try {
+          const data = new Uint8Array(e.target.result);
+          const wb = XLSX.read(data, { type: 'array' });
+
+          // 新しいsettingsDataを構築
+          const newSettingsData = {};
+          const newClassNames = [];
+
+          wb.SheetNames.forEach(sheetName => {
+            // 「使い方」シートは無視
+            if (sheetName === '使い方') return;
+
+            // クラス名として有効か判定（"X年Y組" or "特別支援学級X" or "通級学級"）
+            const isNormalClass = /^\d+年\d+組$/.test(sheetName);
+            const isSpecialClass = /^特別支援学級/.test(sheetName);
+            const isResourceClass = sheetName === '通級学級';
+            if (!isNormalClass && !isSpecialClass && !isResourceClass) return;
+
+            const ws = wb.Sheets[sheetName];
+            const aoa = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+
+            // 1行目はヘッダー、2行目以降がデータ
+            const students = [];
+            for (let i = 1; i <= maxStudentsPerClass; i++) {
+              const row = aoa[i] || [];
+              const num = parseInt(toHalfWidthDigit(row[0]), 10);
+              students.push({
+                number: isNaN(num) ? i : num,
+                name: normalizeName(row[1]),
+                isSpecial: String(row[2] || '').trim() === '○' || String(row[2] || '').trim() === '〇' || String(row[2] || '').trim().toLowerCase() === 'true' || row[2] === true,
+                isResource: String(row[3] || '').trim() === '○' || String(row[3] || '').trim() === '〇' || String(row[3] || '').trim().toLowerCase() === 'true' || row[3] === true,
+                sibYear: toHalfWidthDigit(row[4]),
+                sibClass: toHalfWidthDigit(row[5]),
+                sibName: normalizeName(row[6]),
+                extraSiblings: []
+              });
+
+              // 追加兄弟2、3
+              const ext2Year = toHalfWidthDigit(row[7]);
+              const ext2Class = toHalfWidthDigit(row[8]);
+              const ext2Name = normalizeName(row[9]);
+              if (ext2Year || ext2Class || ext2Name) {
+                students[students.length-1].extraSiblings.push({ sibYear: ext2Year, sibClass: ext2Class, sibName: ext2Name });
+              }
+              const ext3Year = toHalfWidthDigit(row[10]);
+              const ext3Class = toHalfWidthDigit(row[11]);
+              const ext3Name = normalizeName(row[12]);
+              if (ext3Year || ext3Class || ext3Name) {
+                students[students.length-1].extraSiblings.push({ sibYear: ext3Year, sibClass: ext3Class, sibName: ext3Name });
+              }
+            }
+
+            newSettingsData[sheetName] = students;
+            newClassNames.push(sheetName);
+          });
+
+          if (newClassNames.length === 0) {
+            alert("読み込めるシートが見つかりませんでした。\nシート名が「○年○組」「特別支援学級○」「通級学級」のいずれかになっているか確認してください。");
+            event.target.value = '';
+            return;
+          }
+
+          // 完全置き換え
+          settingsData = newSettingsData;
+          classNames = newClassNames;
+          sortClassNames();
+
+          // クラスごとに対応するscheduleData/noVisitDataが無ければ初期化
+          classNames.forEach(cls => {
+            if (!scheduleData[cls]) scheduleData[cls] = generateEmptySchedule();
+            if (!noVisitData[cls]) noVisitData[cls] = [""];
+          });
+          // インポートしたクラスに含まれないscheduleData等は削除（完全置き換えのため）
+          Object.keys(scheduleData).forEach(cls => { if (!classNames.includes(cls)) delete scheduleData[cls]; });
+          Object.keys(noVisitData).forEach(cls => { if (!classNames.includes(cls)) delete noVisitData[cls]; });
+          Object.keys(conditionsData).forEach(cls => { if (!classNames.includes(cls)) delete conditionsData[cls]; });
+
+          // 双方向リンクを再構築
+          applyBiDirectionalLinks();
+
+          // ローカル保存
+          saveAllLocal();
+          localStorage.setItem(STORAGE_KEY_CONDITIONS, JSON.stringify(conditionsData));
+
+          // 画面更新
+          updateScheduleClassSelect();
+          setupDatalist();
+          renderSettings();
+          classNames.forEach(cls => {
+            if (settingsData[cls]) {
+              settingsData[cls].forEach(student => {
+                if (student.name.trim()) syncNoVisitForStudent(cls, student.name.trim());
+              });
+            }
+          });
+          renderConditions();
+          updateScheduleSiblings();
+
+          // クラウドに全クラス保存
+          if (typeof saveAllClassesToCloud === 'function') saveAllClassesToCloud();
+          if (typeof saveGlobalConfigToCloud === 'function') saveGlobalConfigToCloud();
+
+          alert(`インポートが完了しました！\n読み込んだクラス数: ${newClassNames.length}\n\n${newClassNames.join('、')}`);
+        } catch (err) {
+          console.error("インポートエラー:", err);
+          alert("ファイルの読み込みに失敗しました。\n\nエラー: " + err.message);
+        } finally {
+          event.target.value = '';
+        }
+      };
+      reader.onerror = function() {
+        alert("ファイルの読み込みに失敗しました。");
+        event.target.value = '';
+      };
+      reader.readAsArrayBuffer(file);
+    }
+
+    function saveSettings() {
+      syncDOMtoSettings();
+      const affectedClasses = applyBiDirectionalLinks();
+      localStorage.setItem(STORAGE_KEY_SETTINGS, JSON.stringify(settingsData));
+      localStorage.setItem(STORAGE_KEY_NO_VISIT, JSON.stringify(noVisitData));
+      localStorage.setItem(STORAGE_KEY_CONDITIONS, JSON.stringify(conditionsData));
+      setupDatalist();
+      renderSettings();
+      classNames.forEach(cls => {
+        if (settingsData[cls]) {
+          settingsData[cls].forEach(student => {
+            if (student.name.trim()) syncNoVisitForStudent(cls, student.name.trim());
+          });
+        }
+      });
+      renderConditions();
+      updateScheduleSiblings();
+      
+      // 変更のあったクラスだけクラウドに保存
+      affectedClasses.forEach(cls => saveClassToCloud(cls));
+      
+      soundSuccess.currentTime = 0; soundSuccess.play().catch(()=>{});
+    }
+
+    function applyBiDirectionalLinks() {
+      const affectedClasses = new Set();
+      const allStudents = [];
+      classNames.forEach(cls => {
+        settingsData[cls].forEach(s => {
+          if (s.name.trim()) {
+            const myMatch = cls.match(/^(\d+)年(\d+)組$/);
+            if(myMatch) {
+              const addLink = (targetYear, targetClass, targetName) => {
+                if (targetYear && targetClass && targetName.trim()) {
+                  allStudents.push({ myYear: myMatch[1], myClass: myMatch[2], myName: s.name.trim(), targetYear, targetClass, targetName: targetName.trim(), sourceCls: cls });
+                }
+              };
+              addLink(s.sibYear, s.sibClass, s.sibName);
+              if (s.extraSiblings) s.extraSiblings.forEach(ext => addLink(ext.sibYear, ext.sibClass, ext.sibName));
+            }
+          }
+        });
+      });
+
+      allStudents.forEach(link => {
+        const targetCls = `${link.targetYear}年${link.targetClass}組`;
+        if (!settingsData[targetCls]) {
+          settingsData[targetCls] = generateEmptyClass();
+          scheduleData[targetCls] = generateEmptySchedule();
+          noVisitData[targetCls] = [""];
+          if(!classNames.includes(targetCls)) {
+            classNames.push(targetCls);
+            sortClassNames();
+            updateScheduleClassSelect();
+          }
+        }
+        let targetStudent = settingsData[targetCls].find(s => s.name.trim() === link.targetName);
+        if (targetStudent) {
+          let alreadyLinked = false;
+          if (targetStudent.sibYear == link.myYear && targetStudent.sibClass == link.myClass && targetStudent.sibName == link.myName) alreadyLinked = true;
+          if (targetStudent.extraSiblings) {
+            targetStudent.extraSiblings.forEach(ext => {
+              if (ext.sibYear == link.myYear && ext.sibClass == link.myClass && ext.sibName == link.myName) alreadyLinked = true;
+            });
+          }
+          if (!alreadyLinked) {
+            if (!targetStudent.sibYear && !targetStudent.sibClass && !targetStudent.sibName) {
+              targetStudent.sibYear = link.myYear;
+              targetStudent.sibClass = link.myClass;
+              targetStudent.sibName = link.myName;
+            } else {
+              if (!targetStudent.extraSiblings) targetStudent.extraSiblings = [];
+              targetStudent.extraSiblings.push({ sibYear: link.myYear, sibClass: link.myClass, sibName: link.myName });
+            }
+            affectedClasses.add(targetCls);
+          }
+        }
+        affectedClasses.add(link.sourceCls);
+      });
+      return affectedClasses;
+    }
+
+    /* -------------------------------------
+       UI描画: 日程表 (2クリック配置UI)
+    -------------------------------------- */
+    function checkDoubleBooking(currentClass, d, tIdx, studentName) {
+      if (!studentName || !studentName.trim()) return false;
+      const targetName = studentName.trim();
+      for (const otherCls of classNames) {
+        if (otherCls === currentClass) continue;
+        if (scheduleData[otherCls] && scheduleData[otherCls][d] && scheduleData[otherCls][d][tIdx]) {
+          const otherStudentName = scheduleData[otherCls][d][tIdx].studentName.trim();
+          if (otherStudentName) {
+            if (otherStudentName === targetName) return true;
+            if (areTheySiblings(currentClass, targetName, otherCls, otherStudentName)) return true;
+          }
+        }
+      }
+      return false;
+    }
+
+    function areTheySiblings(cls1, name1, cls2, name2) {
+      if (cls1.startsWith("特別支援学級") || cls1 === "通級学級") {
+        const targetStudent = settingsData[cls2]?.find(s => s.name.trim() === name2);
+        if (targetStudent) {
+          if (cls1.startsWith("特別支援学級") && targetStudent.isSpecial) return true;
+          if (cls1 === "通級学級" && targetStudent.isResource) return true;
+        }
+      }
+      if (cls2.startsWith("特別支援学級") || cls2 === "通級学級") {
+        const myStudent = settingsData[cls1]?.find(s => s.name.trim() === name1);
+        if (myStudent) {
+          if (cls2.startsWith("特別支援学級") && myStudent.isSpecial) return true;
+          if (cls2 === "通級学級" && myStudent.isResource) return true;
+        }
+      }
+      const match2 = cls2.match(/^(\d+)年(\d+)組$/);
+      if (match2 && settingsData[cls1]) {
+        const s1 = settingsData[cls1].find(s => s.name.trim() === name1);
+        if (s1) {
+          if (String(s1.sibYear) === String(match2[1]) && String(s1.sibClass) === String(match2[2]) && s1.sibName.trim() === name2) return true;
+          if (s1.extraSiblings) { for (const ext of s1.extraSiblings) { if (String(ext.sibYear) === String(match2[1]) && String(ext.sibClass) === String(match2[2]) && ext.sibName.trim() === name2) return true; } }
+        }
+      }
+      const match1 = cls1.match(/^(\d+)年(\d+)組$/);
+      if (match1 && settingsData[cls2]) {
+        const s2 = settingsData[cls2].find(s => s.name.trim() === name2);
+        if (s2) {
+          if (String(s2.sibYear) === String(match1[1]) && String(s2.sibClass) === String(match1[2]) && s2.sibName.trim() === name1) return true;
+          if (s2.extraSiblings) { for (const ext of s2.extraSiblings) { if (String(ext.sibYear) === String(match1[1]) && String(ext.sibClass) === String(match1[2]) && ext.sibName.trim() === name1) return true; } }
+        }
+      }
+      return false;
+    }
+
+    function hasSiblingAt(targetClass, targetName, d, tIdx) {
+      for (const otherCls of classNames) {
+        if (otherCls === targetClass) continue;
+        if (scheduleData[otherCls] && scheduleData[otherCls][d] && scheduleData[otherCls][d][tIdx]) {
+          const otherName = scheduleData[otherCls][d][tIdx].studentName.trim();
+          if (otherName && areTheySiblings(targetClass, targetName, otherCls, otherName)) return true;
+        }
+      }
+      return false;
+    }
+
+    function renderSchedule() {
+      const activeId = document.activeElement ? document.activeElement.id : null;
+      const currentClass = document.getElementById('schedule-class-select').value;
+      if (!currentClass) return;
+      // scheduleDataにこのクラスが無ければ初期化
+      if (!scheduleData[currentClass]) scheduleData[currentClass] = generateEmptySchedule();
+      const printTitle = document.getElementById('print-schedule-title');
+      if (printTitle) printTitle.textContent = currentClass + ' 日程表';
+      setupDatalist();
+      const table = document.querySelector('#tab-schedule .schedule-wrapper table');
+      const hr1 = document.getElementById('schedule-header-row1');
+      const hr2 = document.getElementById('schedule-header-row2');
+      hr1.innerHTML = `<th rowspan="2" style="width: 80px; min-width: 80px; max-width: 80px; position: sticky; left: 0; top: 0; background: #fafafa; z-index: 13; border-right: 2px solid #ccc; border-bottom: 2px solid #ccc; border-top-left-radius: 12px;">時刻</th>`;
+      hr2.innerHTML = '';
+      for(let d = 0; d < 5; d++){
+        let radiusStyle = (d === 4) ? "border-top-right-radius: 12px;" : "";
+        hr1.innerHTML += `<th colspan="2" style="text-align:center; position: sticky; top: 0; background: rgba(255,255,255,0.95); z-index: 10; border-right: 2px solid #ccc; border-bottom: 1px solid #ccc; height: 55px; ${radiusStyle}">${d+1}日目<br><span style="font-size:0.75rem;font-weight:normal;">${dateConfig[d] || ''}</span></th>`;
+        hr2.innerHTML += `<th style="width: 140px; min-width: 140px; max-width: 140px; position: sticky; top: 55px; background: rgba(255,255,255,0.95); z-index: 10; border-bottom: 2px solid #ccc;">氏名</th>
+          <th style="width: 140px; min-width: 140px; max-width: 140px; font-size:0.8rem; border-right: 2px solid #ccc; position: sticky; top: 55px; background: rgba(255,255,255,0.95); z-index: 10; border-bottom: 2px solid #ccc;">兄弟 (自動)</th>`;
+      }
+      const tbody = document.getElementById('schedule-tbody');
+      tbody.innerHTML = '';
+      timeSlots.forEach((time, tIdx) => {
+        const tr = document.createElement('tr');
+        const tdTime = document.createElement('td');
+        tdTime.textContent = time;
+        tdTime.style.cssText = "font-weight:bold;color:#2c3e50;position:sticky;left:0;background:#fafafa;z-index:5;border-right:2px solid #ccc;";
+        tr.appendChild(tdTime);
+        for(let d = 0; d < 5; d++){
+          const item = scheduleData[currentClass]?.[d]?.[tIdx];
+          const currentStudentName = item ? item.studentName.trim() : "";
+          const tdName = document.createElement('td');
+          const divSlot = document.createElement('div');
+          divSlot.textContent = currentStudentName;
+          divSlot.title = currentStudentName;
+          divSlot.className = "schedule-slot";
+          let isSelectable = true;
+          let isSibling = false;
+          let isConditionMatch = true;
+          let isMovingSource = false;
+          if (selectedPlacement) {
+            if (selectedPlacement.originD === d && selectedPlacement.originTIdx === tIdx) isMovingSource = true;
+            const cond = getCondition(getConditionClassFor(currentClass, selectedPlacement.name), selectedPlacement.name);
+            const dCond = cond.daily[d];
+            if (!dCond.active) isConditionMatch = false;
+            const timeStr = timeSlots[tIdx];
+            if (dCond.timeStart && timeStr < dCond.timeStart) isConditionMatch = false;
+            if (dCond.timeEnd && timeStr > dCond.timeEnd) isConditionMatch = false;
+            if (dCond.order === "first" && tIdx !== 0) isConditionMatch = false;
+            if (dCond.order === "last" && tIdx !== timeSlots.length - 1) isConditionMatch = false;
+            if (hasSiblingAt(currentClass, selectedPlacement.name, d, tIdx)) isSibling = true;
+          }
+          if (isMovingSource) {
+            divSlot.classList.add("selected");
+            divSlot.style.background = "#3498db";
+            divSlot.style.color = "white";
+          } else if (selectedPlacement) {
+            if (!isConditionMatch) { divSlot.classList.add("condition-mismatch"); divSlot.title = "条件に合致しません"; isSelectable = false; }
+            else if (isSibling) { divSlot.classList.add("sibling-here"); divSlot.title = "同じ時間に兄弟が配置されています"; isSelectable = false; }
+            else { divSlot.classList.add("selectable-slot"); }
+          } else {
+            if (checkDoubleBooking(currentClass, d, tIdx, currentStudentName)) { divSlot.classList.add("double-booked-slot"); divSlot.title = "他のクラスで同じ時間に予定が入っています（ダブルブッキング）"; }
+          }
+          divSlot.onclick = () => {
+            if (selectedPlacement) {
+              if (isMovingSource) {
+                scheduleData[currentClass][d][tIdx].studentName = "";
+                selectedPlacement = null;
+                updateScheduleSiblings();
+                saveClassToCloud(currentClass);
+              } else {
+                if (!isSelectable) return;
+                if (selectedPlacement.originD !== undefined && selectedPlacement.originTIdx !== undefined) {
+                  scheduleData[currentClass][selectedPlacement.originD][selectedPlacement.originTIdx].studentName = "";
+                }
+                if (!scheduleData[currentClass][d][tIdx]) scheduleData[currentClass][d][tIdx] = {time: time, studentName: "", siblings: ""};
+                scheduleData[currentClass][d][tIdx].studentName = selectedPlacement.name;
+                selectedPlacement = null;
+                updateScheduleSiblings();
+                saveClassToCloud(currentClass);
+              }
+            } else {
+              if (currentStudentName) {
+                selectedPlacement = { name: currentStudentName, class: currentClass, originD: d, originTIdx: tIdx };
+                renderSchedule();
+              }
+            }
+          };
+          tdName.appendChild(divSlot);
+          const tdSiblings = document.createElement('td');
+          tdSiblings.style.borderRight = "2px solid #ccc";
+          const spanSiblings = document.createElement('span');
+          spanSiblings.className = 'readonly-text';
+          spanSiblings.style.cssText = 'font-size:0.8rem;padding:5px 4px;';
+          spanSiblings.textContent = item ? (item.siblings || "") : "";
+          if(item && item.siblings) { spanSiblings.style.background = "rgba(76, 175, 80, 0.1)"; spanSiblings.style.color = "#27ae60"; spanSiblings.style.fontWeight = "bold"; }
+          tdSiblings.appendChild(spanSiblings);
+          tr.appendChild(tdName);
+          tr.appendChild(tdSiblings);
+        }
+        tbody.appendChild(tr);
+      });
+      // tfoot
+      const oldTfoot = table.querySelector('tfoot');
+      if(oldTfoot) oldTfoot.remove();
+      const tfoot = document.createElement('tfoot');
+      const trFoot = document.createElement('tr');
+      const tdFootTitle = document.createElement('td');
+      tdFootTitle.innerHTML = "家庭訪問を<br>希望しない";
+      tdFootTitle.style.cssText = "font-weight:bold;color:#2c3e50;position:sticky;left:0;background:#fafafa;z-index:5;border-right:2px solid #ccc;border-top:2px solid #ccc;font-size:0.75rem;";
+      trFoot.appendChild(tdFootTitle);
+      const tdFootContent = document.createElement('td');
+      tdFootContent.colSpan = 10;
+      tdFootContent.style.cssText = "background:#fafafa;padding:8px;border-top:2px solid #ccc;";
+      const noVisitContainer = document.createElement('div');
+      noVisitContainer.style.cssText = "display:flex;gap:10px;overflow-x:auto;align-items:center;";
+      function renderNoVisitContainer() {
+        const activeNovisitId = document.activeElement ? document.activeElement.id : null;
+        noVisitContainer.innerHTML = '';
+        let list = noVisitData[currentClass] || [""];
+        list = list.filter((name, idx) => name.trim() !== "" || idx === list.length - 1);
+        if (list.length === 0 || list[list.length - 1].trim() !== "") list.push("");
+        noVisitData[currentClass] = list;
+        list.forEach((name, idx) => {
+          const input = document.createElement('input');
+          input.type = 'text'; input.id = `novisit-${currentClass}-${idx}`; input.value = name;
+          input.setAttribute('list', 'student-list'); input.placeholder = "名前..."; input.style.cssText = "width:150px;flex-shrink:0;";
+          input.addEventListener('change', (e) => {
+            list[idx] = e.target.value.trim();
+            noVisitData[currentClass] = list;
+            localStorage.setItem(STORAGE_KEY_NO_VISIT, JSON.stringify(noVisitData));
+            renderNoVisitContainer();
+            updateUnenteredStudentsDisplay();
+            saveClassToCloud(currentClass);
+          });
+          noVisitContainer.appendChild(input);
+        });
+        if (activeNovisitId) setTimeout(() => { const el = document.getElementById(activeNovisitId); if (el) el.focus(); }, 0);
+      }
+      renderNoVisitContainer();
+      tdFootContent.appendChild(noVisitContainer);
+      trFoot.appendChild(tdFootContent);
+      tfoot.appendChild(trFoot);
+      for (let i = 1; i <= 5; i++) {
+        const trUnentered = document.createElement('tr');
+        const tdUnenteredTitle = document.createElement('td');
+        tdUnenteredTitle.innerHTML = `希望${i}日<br><span style='font-size:0.6rem;font-weight:normal;'>クリックして配置</span>`;
+        tdUnenteredTitle.style.cssText = "font-weight:bold;color:#2c3e50;position:sticky;left:0;background:#fafafa;z-index:5;border-right:2px solid #ccc;border-top:1px solid #ccc;font-size:0.75rem;height:55px;";
+        trUnentered.appendChild(tdUnenteredTitle);
+        const tdUnenteredContent = document.createElement('td');
+        tdUnenteredContent.colSpan = 10;
+        tdUnenteredContent.style.cssText = "background:#fafafa;padding:8px;border-top:1px solid #ccc;height:55px;";
+        const unenteredDisplayDiv = document.createElement('div');
+        unenteredDisplayDiv.id = `unentered-students-display-${i}`;
+        unenteredDisplayDiv.style.cssText = 'display:flex;gap:10px;overflow-x:auto;padding:5px 0;';
+        tdUnenteredContent.appendChild(unenteredDisplayDiv);
+        trUnentered.appendChild(tdUnenteredContent);
+        tfoot.appendChild(trUnentered);
+      }
+      table.appendChild(tfoot);
+      updateUnenteredStudentsDisplay();
+      if (activeId && !activeId.startsWith('novisit-')) setTimeout(() => { const el = document.getElementById(activeId); if (el) el.focus(); }, 0);
+    }
+
+    function findSiblingSchedules(currentClass, d, tIdx) {
+      let siblingsStr = [];
+      classNames.forEach(otherCls => {
+        if (otherCls === currentClass) return;
+        if (scheduleData[otherCls] && scheduleData[otherCls][d] && scheduleData[otherCls][d][tIdx]) {
+          const otherStudentName = scheduleData[otherCls][d][tIdx].studentName.trim();
+          if (otherStudentName && checkIsSibling(currentClass, otherCls, otherStudentName)) {
+            siblingsStr.push(`${otherCls} ${otherStudentName}`);
+          }
+        }
+      });
+      return siblingsStr.join('\n');
+    }
+
+    function checkIsSibling(currentClass, otherClass, otherStudentName) {
+      if (settingsData[otherClass]) {
+        const targetStudent = settingsData[otherClass].find(s => s.name.trim() === otherStudentName);
+        if (targetStudent) {
+          if (currentClass.startsWith("特別支援学級") && targetStudent.isSpecial) return true;
+          if (currentClass === "通級学級" && targetStudent.isResource) return true;
+        }
+      }
+      if (settingsData[currentClass]) {
+        if (otherClass.startsWith("特別支援学級")) { const myStudent = settingsData[currentClass].find(s => s.name.trim() === otherStudentName); if (myStudent && myStudent.isSpecial) return true; }
+        if (otherClass === "通級学級") { const myStudent = settingsData[currentClass].find(s => s.name.trim() === otherStudentName); if (myStudent && myStudent.isResource) return true; }
+      }
+      if(!settingsData[currentClass]) return false;
+      const otherMatch = otherClass.match(/^(\d+)年(\d+)組$/);
+      if(!otherMatch) return false;
+      for (const student of settingsData[currentClass]) {
+        if (student.name.trim() !== '') {
+          if (String(student.sibYear) === String(otherMatch[1]) && String(student.sibClass) === String(otherMatch[2]) && student.sibName.trim() === otherStudentName) return true;
+          if (student.extraSiblings) {
+            for (const ext of student.extraSiblings) {
+              if (String(ext.sibYear) === String(otherMatch[1]) && String(ext.sibClass) === String(otherMatch[2]) && ext.sibName.trim() === otherStudentName) return true;
+            }
+          }
+        }
+      }
+      return false;
+    }
+
+    function updateScheduleSiblings() {
+      classNames.forEach(cls => {
+        if(scheduleData[cls]){
+          for(let d = 0; d < 5; d++){
+            if(scheduleData[cls][d]){
+              scheduleData[cls][d].forEach((item, tIdx) => { if(item) item.siblings = findSiblingSchedules(cls, d, tIdx); });
+            }
+          }
+        }
+      });
+      renderSchedule();
+      saveScheduleData();
+    }
+
+    function saveScheduleData() {
+      localStorage.setItem(STORAGE_KEY_SCHEDULE, JSON.stringify(scheduleData));
+    }
+
+    function updateUnenteredStudentsDisplay() {
+      const currentClass = document.getElementById('schedule-class-select').value;
+      if (!currentClass || !settingsData[currentClass]) return;
+      const isSpecialView = isSpecialOrResourceClass(currentClass);
+      const currentClassStudents = isSpecialView
+        ? getSpecialClassMembers(currentClass).map(m => m.name)
+        : settingsData[currentClass].filter(s => s.name.trim() !== '').map(s => s.name.trim());
+      const scheduledStudents = [];
+      if (scheduleData[currentClass]) {
+        for(let d = 0; d < 5; d++){
+          if(scheduleData[currentClass][d]) {
+            scheduleData[currentClass][d].forEach(item => { if(item && item.studentName.trim() !== '') scheduledStudents.push(item.studentName.trim()); });
+          }
+        }
+      }
+      const noVisitStudents = (noVisitData[currentClass] || []).filter(name => name.trim() !== '').map(name => name.trim());
+      const allEnteredStudents = [...scheduledStudents, ...noVisitStudents];
+      const unenteredStudents = currentClassStudents.filter(name => !allEnteredStudents.includes(name));
+      const groupedStudents = { 1: [], 2: [], 3: [], 4: [], 5: [] };
+      unenteredStudents.forEach(name => {
+        const cond = getCondition(getConditionClassFor(currentClass, name), name);
+        let activeCount = 0;
+        for (let i = 0; i < 5; i++) { if (cond.daily[i].active) activeCount++; }
+        if (isSpecialView && activeCount === 0) return; // 原学級で全日「希望しない」の子は特支/通級でも出さない
+        if (activeCount >= 1 && activeCount <= 5) groupedStudents[activeCount].push(name);
+        else groupedStudents[5].push(name);
+      });
+      for (let count = 1; count <= 5; count++) {
+        const container = document.getElementById(`unentered-students-display-${count}`);
+        if (container) {
+          container.innerHTML = '';
+          if(groupedStudents[count].length > 0) {
+            groupedStudents[count].forEach(name => {
+              const card = document.createElement('div');
+              card.className = "student-card";
+              if (selectedPlacement && selectedPlacement.name === name && selectedPlacement.originD === undefined) card.classList.add("selected");
+              card.textContent = name;
+              card.onclick = () => {
+                if (selectedPlacement && selectedPlacement.name === name && selectedPlacement.originD === undefined) selectedPlacement = null;
+                else selectedPlacement = { name: name, class: currentClass };
+                renderSchedule();
+              };
+              container.appendChild(card);
+            });
+          } else {
+            const span = document.createElement('span');
+            span.textContent = "なし"; span.style.cssText = "color:#aaa;font-size:0.9rem;padding:10px;";
+            container.appendChild(span);
+          }
+        }
+      }
+    }
+
+    function setupDatalist() {
+      let datalist = document.getElementById('student-list');
+      if (!datalist) { datalist = document.createElement('datalist'); datalist.id = 'student-list'; document.body.appendChild(datalist); }
+      datalist.innerHTML = '';
+      const currentClass = document.getElementById('schedule-class-select').value;
+      if (!currentClass || !settingsData[currentClass]) return;
+      if (isSpecialOrResourceClass(currentClass)) {
+        getSpecialClassMembers(currentClass).forEach(m => {
+          const option = document.createElement('option'); option.value = m.name; datalist.appendChild(option);
+        });
+        return;
+      }
+      settingsData[currentClass].forEach(s => {
+        if (s.name.trim() !== '') { const option = document.createElement('option'); option.value = s.name.trim(); datalist.appendChild(option); }
+      });
+    }
+
+    function checkPassword() {
+      const pw = document.getElementById('auth-password-input').value;
+      if (pw === settingsPassword) {
+        isSettingsUnlocked = true;
+        document.getElementById('password-modal').style.display = 'none';
+        if (pendingTabTarget) { pendingTabTarget.click(); pendingTabTarget = null; }
+      } else {
+        const input = document.getElementById('auth-password-input');
+        input.style.borderColor = '#e74c3c'; input.value = ''; input.placeholder = 'パスワードが違います';
+        setTimeout(() => { input.style.borderColor = '#ddd'; input.placeholder = 'パスワード'; }, 2000);
+      }
+    }
+
+    function changePassword() {
+      const newPw = document.getElementById('new-password-input').value;
+      if (!newPw) { alert("新しいパスワードを入力してください。"); return; }
+      if (confirm("パスワードを変更しますか？")) {
+        settingsPassword = newPw;
+        localStorage.setItem(STORAGE_KEY_PASSWORD, settingsPassword);
+        saveGlobalConfigToCloud();
+        alert("パスワードを変更しました。");
+        document.getElementById('new-password-input').value = '';
+      }
+    }
+
+    function setupTabs() {
+      const btns = document.querySelectorAll('.tab-btn');
+      const contents = document.querySelectorAll('.tab-content');
+      const scheduleClassSelect = document.getElementById('schedule-class-select');
+      btns.forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          if(!e.target.dataset.target) return;
+          const targetId = e.target.dataset.target;
+          if ((targetId === 'tab-config' || targetId === 'tab-settings') && !isSettingsUnlocked) {
+            pendingTabTarget = e.target;
+            document.getElementById('password-modal').style.display = 'flex';
+            document.getElementById('auth-password-input').value = '';
+            setTimeout(() => document.getElementById('auth-password-input').focus(), 100);
+            return;
+          }
+          btns.forEach(b => { if(b.dataset.target) b.classList.remove('active'); });
+          contents.forEach(c => { c.style.opacity = 0; setTimeout(() => c.classList.remove('active'), 400); });
+          e.target.classList.add('active');
+          const targetContent = document.getElementById(targetId);
+          if(targetId === 'tab-schedule' || targetId === 'tab-conditions') {
+            scheduleClassSelect.style.display = 'inline-block';
+            updateScheduleClassSelect();
+            selectedPlacement = null;
+            if(targetId === 'tab-schedule') renderSchedule();
+            if(targetId === 'tab-conditions') renderConditions();
+          } else { scheduleClassSelect.style.display = 'none'; }
+          setTimeout(() => { targetContent.classList.add('active'); void targetContent.offsetWidth; targetContent.style.opacity = 1; }, 400);
+        });
+      });
+    }
+
+    /* 表示中のクラスの「条件」だけをクリア（このクラス全員）
+       - 全員の条件を「希望する」ON・時間空欄・指定なしに戻す
+       - noVisitData も連動してクリア（全員参加状態に戻る）
+       - 名簿・日程表には影響しない */
+    async function clearConditionsForCurrentClass() {
+      const currentClass = document.getElementById('schedule-class-select').value;
+      if (!currentClass) {
+        alert('クラスが選択されていません。');
+        return;
+      }
+
+      if (!confirm(`⚠️ ${currentClass} 全員の「条件」をクリアします。\n\n■ 全員「希望する」にチェックが入った状態に戻ります。\n■ 時間（開始〜終了）はすべて空欄になります。\n■「最初の枠／最後の枠」の指定もリセットされます。\n■ 日程表下部の「家庭訪問を希望しない児童」のリストもクリアされます。\n■ 名簿・日程表（児童の配置）には影響しません。\n\nこの操作はクラウドにも反映され、取り消せません。\n本当にクリアしますか？`)) return;
+
+      // ロールバック用バックアップ
+      const backupConditions = JSON.parse(JSON.stringify(conditionsData));
+      const backupNoVisit = JSON.parse(JSON.stringify(noVisitData));
+
+      try {
+        // 1. ローカルデータをクリア
+        conditionsData[currentClass] = {};
+        noVisitData[currentClass] = [""];
+
+        // 2. ローカルストレージに反映
+        localStorage.setItem(STORAGE_KEY_CONDITIONS, JSON.stringify(conditionsData));
+        localStorage.setItem(STORAGE_KEY_NO_VISIT, JSON.stringify(noVisitData));
+
+        // 3. クラウドに反映（失敗したらロールバック）
+        await saveClassToCloudThrowable(currentClass);
+
+        // 4. 画面更新
+        renderConditions();
+        renderSchedule();
+
+        alert(`${currentClass} の条件をクリアしました。\nクラウドにも反映されました。`);
+      } catch (e) {
+        console.error("条件クリア失敗:", e);
+        conditionsData = backupConditions;
+        noVisitData = backupNoVisit;
+        localStorage.setItem(STORAGE_KEY_CONDITIONS, JSON.stringify(conditionsData));
+        localStorage.setItem(STORAGE_KEY_NO_VISIT, JSON.stringify(noVisitData));
+        renderConditions();
+        renderSchedule();
+        alert("条件のクリアに失敗しました（ネットワーク等の問題）。\nデータは元のままです。\n\nエラー: " + e.message);
+      }
+    }
+
+    /* 日程表と条件をまとめて初期化（名簿は残す）
+       - ローカル・クラウドの両方を初期化する */
+    async function resetScheduleAndConditions() {
+      if (!confirm('⚠️ 全クラスの「日程表」と「条件」を空にします。\n名簿は残ります。\n\nこの操作はクラウドにも反映され、取り消せません。\n本当によろしいですか？')) return;
+      
+      // 二重確認（誤操作防止）
+      if (!confirm('もう一度確認します。\n本当にすべての日程表と条件を初期化しますか？')) return;
+
+      // ロールバック用にバックアップを取る
+      const backupSchedule = JSON.parse(JSON.stringify(scheduleData));
+      const backupNoVisit = JSON.parse(JSON.stringify(noVisitData));
+      const backupConditions = JSON.parse(JSON.stringify(conditionsData));
+
+      try {
+        const resetTimestamp = new Date().toISOString();
+        
+        // 1. ローカルデータの日程表と条件を空にする（メモリ上のみ）
+        classNames.forEach(cls => {
+          scheduleData[cls] = generateEmptySchedule();
+          noVisitData[cls] = [""];
+          conditionsData[cls] = {};
+        });
+
+        // 2. クラウドの全クラスを先に更新（失敗したらロールバック）
+        if (typeof saveAllClassesToCloudWithReset === 'function') {
+          await saveAllClassesToCloudWithReset(resetTimestamp);
+        }
+
+        // 3. クラウド保存成功 → ローカルストレージにも反映
+        localStorage.setItem(STORAGE_KEY_SCHEDULE, JSON.stringify(scheduleData));
+        localStorage.setItem(STORAGE_KEY_NO_VISIT, JSON.stringify(noVisitData));
+        localStorage.setItem(STORAGE_KEY_CONDITIONS, JSON.stringify(conditionsData));
+        localStorage.setItem('homeVisitLastResetAt_v1', resetTimestamp);
+
+        // 4. 画面更新
+        renderSchedule();
+        renderConditions();
+
+        alert('日程表と条件を初期化しました。\nクラウドにも反映されました。\n\n※ 他のパソコン・端末でこのアプリを使っている先生がいる場合は、\nその先生方にも一度ブラウザの再読み込み(F5)をお願いしてください。');
+      } catch (e) {
+        // クラウド保存に失敗 → ローカル変数もロールバック
+        console.error("初期化失敗:", e);
+        scheduleData = backupSchedule;
+        noVisitData = backupNoVisit;
+        conditionsData = backupConditions;
+        renderSchedule();
+        renderConditions();
+        alert("初期化に失敗しました（ネットワーク等の問題）。\nデータは元のままです。\n\nエラー: " + e.message);
+      }
+    }
+
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' || e.key === 'Esc') {
+        if (document.getElementById('password-modal').style.display === 'flex') {
+          document.getElementById('password-modal').style.display = 'none'; pendingTabTarget = null;
+        } else if (selectedPlacement) { selectedPlacement = null; renderSchedule(); }
+      }
+      if (e.key === 'Enter' && document.getElementById('password-modal').style.display === 'flex') checkPassword();
+    });
+
+    function openAuthModal() { document.getElementById('auth-modal').style.display = 'flex'; }
+    function closeAuthModal() { document.getElementById('auth-modal').style.display = 'none'; }
+
+    /* =============================================
+       同期ステータス表示
+    ============================================= */
+    function setSyncStatus(status, text) {
+      const el = document.getElementById('sync-status');
+      const textEl = document.getElementById('sync-status-text');
+      el.className = 'sync-status ' + status;
+      textEl.textContent = text;
+    }
+
+    /* =============================================
+       Firebase クラウド保存 — クラス単位で分離
+       
+       データ構造:
+       artifacts/{appId}/users/{uid}/globalConfig/main
+         → classNames, timeConfig, dateConfig, settingsPassword
+       
+       artifacts/{appId}/users/{uid}/classes/{className}
+         → settings, schedule, noVisit, conditions, updatedAt
+    ============================================= */
+
+    // クラウド操作のスタブ（Firebase読み込み前）
+    function saveClassToCloud(cls) { /* Firebase初期化後に上書き */ }
+    function saveClassToCloudThrowable(cls) { /* Firebase初期化後に上書き */ }
+    function saveAllClassesToCloud() { /* Firebase初期化後に上書き */ }
+    function saveAllClassesToCloudWithReset(ts) { /* Firebase初期化後に上書き */ }
+    function deleteClassFromCloud(cls) { /* Firebase初期化後に上書き */ }
+    function saveGlobalConfigToCloud() { /* Firebase初期化後に上書き */ }
+    function manualSync() { alert('通信準備中です。'); }
+
+    window.onload = init;
+
+    // ==========================================
+    // Firebase クラウド同期（クラス単位分離版）
+    // ==========================================
+    import("https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js").then(async (firebaseApp) => {
+      const { initializeApp } = firebaseApp;
+      const { getAuth, onAuthStateChanged, signInAnonymously, signInWithCustomToken, createUserWithEmailAndPassword, signInWithEmailAndPassword, linkWithCredential, EmailAuthProvider, signOut } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js");
+      const { getFirestore, doc, getDoc, setDoc, deleteDoc, collection, getDocs, runTransaction, writeBatch } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js");
+
+      const firebaseConfig = {
+        apiKey: "AIzaSyBvARE1WjJnKwR5Bt6h5dvgnLkVp2OW-KA",
+        authDomain: "katei-houmon.firebaseapp.com",
+        projectId: "katei-houmon",
+        storageBucket: "katei-houmon.firebasestorage.app",
+        messagingSenderId: "971980229715",
+        appId: "1:971980229715:web:3409b4a72a6c25d53c8aa6"
+      };
+
+      const app = initializeApp(firebaseConfig);
+      const auth = getAuth(app);
+      const db = getFirestore(app);
+      const appId = typeof __app_id !== 'undefined' ? __app_id : 'homeVisitApp';
+
+      let isSaving = false;
+
+      // パス生成ヘルパー
+      function globalConfigRef() {
+        return doc(db, 'artifacts', appId, 'users', auth.currentUser.uid, 'globalConfig', 'main');
+      }
+      function classDocRef(cls) {
+        // クラス名をFirestore-safeなIDに変換（/ は使えないので）
+        const safeId = encodeURIComponent(cls);
+        return doc(db, 'artifacts', appId, 'users', auth.currentUser.uid, 'classes', safeId);
+      }
+
+      // ★ クラス単位でクラウドに保存（他のクラスには一切触れない）
+      saveClassToCloud = async function(cls) {
+        if (!auth.currentUser) return;
+        if (isSaving) return; // 保存中の連鎖呼び出し防止
+        isSaving = true;
+        try {
+          setSyncStatus('syncing', '保存中...');
+          await setDoc(classDocRef(cls), {
+            settings: JSON.stringify(settingsData[cls] || []),
+            schedule: JSON.stringify(scheduleData[cls] || []),
+            noVisit: JSON.stringify(noVisitData[cls] || [""]),
+            conditions: JSON.stringify(conditionsData[cls] || {}),
+            updatedAt: new Date().toISOString()
+          });
+          setSyncStatus('synced', '保存完了');
+        } catch (e) {
+          console.error(`クラス ${cls} の保存失敗:`, e);
+          setSyncStatus('error', '保存失敗');
+        } finally {
+          isSaving = false;
+        }
+      };
+
+      // ★ クラス単位でクラウドに保存（条件クリア等、ロールバックが必要な処理用に例外を再スロー）
+      saveClassToCloudThrowable = async function(cls) {
+        if (!auth.currentUser) throw new Error('未ログインのため保存できません。');
+        isSaving = true;
+        try {
+          setSyncStatus('syncing', '保存中...');
+          await setDoc(classDocRef(cls), {
+            settings: JSON.stringify(settingsData[cls] || []),
+            schedule: JSON.stringify(scheduleData[cls] || []),
+            noVisit: JSON.stringify(noVisitData[cls] || [""]),
+            conditions: JSON.stringify(conditionsData[cls] || {}),
+            updatedAt: new Date().toISOString()
+          });
+          setSyncStatus('synced', '保存完了');
+        } catch (e) {
+          console.error(`クラス ${cls} の保存失敗:`, e);
+          setSyncStatus('error', '保存失敗');
+          throw e;
+        } finally {
+          isSaving = false;
+        }
+      };
+
+      // ★ 全クラスをクラウドに保存（時間枠リセット時など）
+      saveAllClassesToCloud = async function() {
+        if (!auth.currentUser) return;
+        isSaving = true;
+        try {
+          setSyncStatus('syncing', '全クラス保存中...');
+          const batch = writeBatch(db);
+          classNames.forEach(cls => {
+            batch.set(classDocRef(cls), {
+              settings: JSON.stringify(settingsData[cls] || []),
+              schedule: JSON.stringify(scheduleData[cls] || []),
+              noVisit: JSON.stringify(noVisitData[cls] || [""]),
+              conditions: JSON.stringify(conditionsData[cls] || {}),
+              updatedAt: new Date().toISOString()
+            });
+          });
+          await batch.commit();
+          setSyncStatus('synced', '全クラス保存完了');
+        } catch (e) {
+          console.error("全クラス保存失敗:", e);
+          setSyncStatus('error', '保存失敗');
+        } finally {
+          isSaving = false;
+        }
+      };
+
+      // ★ 初期化用：日程表と条件をクラウドで空にし、初期化タイムスタンプを記録
+      saveAllClassesToCloudWithReset = async function(resetTimestamp) {
+        if (!auth.currentUser) return;
+        isSaving = true;
+        try {
+          setSyncStatus('syncing', '初期化中...');
+          const batch = writeBatch(db);
+          
+          // 各クラスの日程・条件・noVisitを空に、settingsは残す
+          classNames.forEach(cls => {
+            batch.set(classDocRef(cls), {
+              settings: JSON.stringify(settingsData[cls] || []),
+              schedule: JSON.stringify(scheduleData[cls] || []),  // 既に空にされている
+              noVisit: JSON.stringify(noVisitData[cls] || [""]),  // 既に空にされている
+              conditions: JSON.stringify(conditionsData[cls] || {}),  // 既に空にされている
+              updatedAt: new Date().toISOString()
+            });
+          });
+
+          // グローバル設定に初期化タイムスタンプを保存
+          batch.set(globalConfigRef(), {
+            classNames: JSON.stringify(classNames),
+            timeConfig: JSON.stringify(timeConfig),
+            dateConfig: JSON.stringify(dateConfig),
+            settingsPassword: settingsPassword,
+            lastResetAt: resetTimestamp,
+            updatedAt: new Date().toISOString()
+          });
+
+          await batch.commit();
+          setSyncStatus('synced', '初期化完了');
+        } catch (e) {
+          console.error("初期化失敗:", e);
+          setSyncStatus('error', '初期化失敗');
+          throw e;
+        } finally {
+          isSaving = false;
+        }
+      };
+
+      // ★ クラス削除
+      deleteClassFromCloud = async function(cls) {
+        if (!auth.currentUser) return;
+        try {
+          await deleteDoc(classDocRef(cls));
+          await saveGlobalConfigToCloud();
+        } catch (e) {
+          console.error(`クラス ${cls} の削除失敗:`, e);
+        }
+      };
+
+      // ★ グローバル設定の保存
+      saveGlobalConfigToCloud = async function() {
+        if (!auth.currentUser) return;
+        try {
+          await setDoc(globalConfigRef(), {
+            classNames: JSON.stringify(classNames),
+            timeConfig: JSON.stringify(timeConfig),
+            dateConfig: JSON.stringify(dateConfig),
+            settingsPassword: settingsPassword,
+            updatedAt: new Date().toISOString()
+          });
+        } catch (e) {
+          console.error("グローバル設定の保存失敗:", e);
+        }
+      };
+
+      // ★ クラウドから全データを読み込み（起動時・ログイン時・手動同期時）
+      async function loadAllFromCloud() {
+        if (!auth.currentUser) return false;
+        setSyncStatus('syncing', '読み込み中...');
+        try {
+          // 0. 旧データ構造からの移行チェック
+          //    旧: artifacts/{appId}/users/{uid}/appData/main に全データが入っている
+          //    新: クラスごとに分離
+          const oldDocRef = doc(db, 'artifacts', appId, 'users', auth.currentUser.uid, 'appData', 'main');
+          const globalSnap = await getDoc(globalConfigRef());
+          
+          if (!globalSnap.exists()) {
+            // 新構造のグローバル設定が無い → 旧データがあれば移行する
+            const oldSnap = await getDoc(oldDocRef);
+            if (oldSnap.exists()) {
+              setSyncStatus('syncing', '旧データを移行中...');
+              const oldData = oldSnap.data();
+              
+              // 旧データを読み込む
+              let oldSettings = {};
+              let oldSchedule = {};
+              let oldNoVisit = {};
+              let oldConditions = {};
+              if (oldData.settings) oldSettings = typeof oldData.settings === 'string' ? JSON.parse(oldData.settings) : oldData.settings;
+              if (oldData.schedule) oldSchedule = typeof oldData.schedule === 'string' ? JSON.parse(oldData.schedule) : oldData.schedule;
+              if (oldData.noVisit) oldNoVisit = typeof oldData.noVisit === 'string' ? JSON.parse(oldData.noVisit) : oldData.noVisit;
+              if (oldData.conditions) oldConditions = typeof oldData.conditions === 'string' ? JSON.parse(oldData.conditions) : oldData.conditions;
+              if (oldData.timeConfig) timeConfig = typeof oldData.timeConfig === 'string' ? JSON.parse(oldData.timeConfig) : oldData.timeConfig;
+              if (oldData.dateConfig) dateConfig = typeof oldData.dateConfig === 'string' ? JSON.parse(oldData.dateConfig) : oldData.dateConfig;
+              if (oldData.settingsPassword) settingsPassword = oldData.settingsPassword;
+              
+              generateTimeSlots();
+              
+              // 旧データをローカルに反映
+              const oldClassNames = Object.keys(oldSettings);
+              if (oldClassNames.length > 0) classNames = oldClassNames;
+              sortClassNames();
+              settingsData = oldSettings;
+              scheduleData = oldSchedule;
+              noVisitData = oldNoVisit;
+              conditionsData = oldConditions;
+              
+              // 新構造でクラウドに保存
+              const batch = writeBatch(db);
+              batch.set(globalConfigRef(), {
+                classNames: JSON.stringify(classNames),
+                timeConfig: JSON.stringify(timeConfig),
+                dateConfig: JSON.stringify(dateConfig),
+                settingsPassword: settingsPassword,
+                updatedAt: new Date().toISOString()
+              });
+              classNames.forEach(cls => {
+                batch.set(classDocRef(cls), {
+                  settings: JSON.stringify(settingsData[cls] || []),
+                  schedule: JSON.stringify(scheduleData[cls] || []),
+                  noVisit: JSON.stringify(noVisitData[cls] || [""]),
+                  conditions: JSON.stringify(conditionsData[cls] || {}),
+                  updatedAt: new Date().toISOString()
+                });
+              });
+              await batch.commit();
+              
+              // ローカルに保存して画面更新
+              saveAllLocal();
+              localStorage.setItem(STORAGE_KEY_CONDITIONS, JSON.stringify(conditionsData));
+              localStorage.setItem(STORAGE_KEY_TIME, JSON.stringify(timeConfig));
+              localStorage.setItem(STORAGE_KEY_DATE, JSON.stringify(dateConfig));
+              localStorage.setItem(STORAGE_KEY_PASSWORD, settingsPassword);
+              renderTimeDateConfig();
+              updateScheduleClassSelect();
+              setupDatalist();
+              renderSettings();
+              classNames.forEach(cls => {
+                if (settingsData[cls]) {
+                  settingsData[cls].forEach(student => {
+                    if (student.name.trim()) syncNoVisitForStudent(cls, student.name.trim());
+                  });
+                }
+              });
+              updateScheduleSiblings();
+              
+              setSyncStatus('synced', '移行完了');
+              console.log("旧データから新構造への移行が完了しました。");
+              return true;
+            }
+          }
+          
+          // 1. グローバル設定を読み込む（新構造）
+          if (globalSnap.exists()) {
+            const gd = globalSnap.data();
+            if (gd.classNames) classNames = JSON.parse(gd.classNames);
+            if (gd.timeConfig) timeConfig = JSON.parse(gd.timeConfig);
+            if (gd.dateConfig) dateConfig = JSON.parse(gd.dateConfig);
+            if (gd.settingsPassword) settingsPassword = gd.settingsPassword;
+            if (gd.lastResetAt) localStorage.setItem('homeVisitLastResetAt_v1', gd.lastResetAt);
+            generateTimeSlots();
+          }
+
+          // 2. 全クラスのデータを読み込む
+          const classesCol = collection(db, 'artifacts', appId, 'users', auth.currentUser.uid, 'classes');
+          const classesSnap = await getDocs(classesCol);
+          
+          classesSnap.forEach(docSnap => {
+            const cls = decodeURIComponent(docSnap.id);
+            const data = docSnap.data();
+            if (data.settings) settingsData[cls] = JSON.parse(data.settings);
+            if (data.schedule) scheduleData[cls] = JSON.parse(data.schedule);
+            if (data.noVisit) noVisitData[cls] = JSON.parse(data.noVisit);
+            if (data.conditions) conditionsData[cls] = JSON.parse(data.conditions);
+            
+            // classNamesに無いクラスが見つかった場合は追加
+            if (!classNames.includes(cls)) classNames.push(cls);
+          });
+
+          sortClassNames();
+
+          // 3. ローカルに保存
+          localStorage.setItem(STORAGE_KEY_SETTINGS, JSON.stringify(settingsData));
+          localStorage.setItem(STORAGE_KEY_SCHEDULE, JSON.stringify(scheduleData));
+          localStorage.setItem(STORAGE_KEY_NO_VISIT, JSON.stringify(noVisitData));
+          localStorage.setItem(STORAGE_KEY_CONDITIONS, JSON.stringify(conditionsData));
+          localStorage.setItem(STORAGE_KEY_TIME, JSON.stringify(timeConfig));
+          localStorage.setItem(STORAGE_KEY_DATE, JSON.stringify(dateConfig));
+          localStorage.setItem(STORAGE_KEY_PASSWORD, settingsPassword);
+
+          // 4. UI更新
+          renderTimeDateConfig();
+          updateScheduleClassSelect();
+          setupDatalist();
+          renderSettings();
+          classNames.forEach(cls => {
+            if (settingsData[cls]) {
+              settingsData[cls].forEach(student => {
+                if (student.name.trim()) syncNoVisitForStudent(cls, student.name.trim());
+              });
+            }
+          });
+          updateScheduleSiblings();
+          const activeTab = document.querySelector('.tab-btn.active');
+          if (activeTab && activeTab.dataset.target === 'tab-conditions') renderConditions();
+
+          setSyncStatus('synced', '同期完了');
+          return true;
+        } catch (e) {
+          console.error("クラウド読み込み失敗:", e);
+          setSyncStatus('error', '読み込み失敗');
+          return false;
+        }
+      }
+
+      // ★ 手動同期ボタン
+      manualSync = async function() {
+        if (!auth.currentUser) { alert("クラウドに接続されていません。ログインしてください。"); return; }
+        
+        // 1. まず現在のローカルの変更をDOMから吸い上げる
+        syncDOMtoSettings();
+        
+        // 2. クラウドから最新データを読み込む
+        setSyncStatus('syncing', 'クラウド読み込み中...');
+        let cloudSettings = {};
+        let cloudSchedule = {};
+        let cloudNoVisit = {};
+        let cloudConditions = {};
+        let cloudClassNames = [];
+        
+        let cloudResetAt = null;  // クラウドの最終初期化時刻
+        try {
+          const globalSnap = await getDoc(globalConfigRef());
+          if (globalSnap.exists()) {
+            const gd = globalSnap.data();
+            if (gd.classNames) cloudClassNames = JSON.parse(gd.classNames);
+            if (gd.lastResetAt) cloudResetAt = gd.lastResetAt;
+            // グローバル設定はクラウド側を優先的に取り込む
+            if (gd.timeConfig) {
+              const cloudTimeConfig = JSON.parse(gd.timeConfig);
+              // ローカルと異なる場合はクラウドを採用
+              if (JSON.stringify(cloudTimeConfig) !== JSON.stringify(timeConfig)) {
+                timeConfig = cloudTimeConfig;
+                localStorage.setItem(STORAGE_KEY_TIME, JSON.stringify(timeConfig));
+                generateTimeSlots();
+              }
+            }
+            if (gd.dateConfig) {
+              dateConfig = JSON.parse(gd.dateConfig);
+              localStorage.setItem(STORAGE_KEY_DATE, JSON.stringify(dateConfig));
+            }
+            if (gd.settingsPassword) {
+              settingsPassword = gd.settingsPassword;
+              localStorage.setItem(STORAGE_KEY_PASSWORD, settingsPassword);
+            }
+          }
+          
+          const classesCol = collection(db, 'artifacts', appId, 'users', auth.currentUser.uid, 'classes');
+          const classesSnap = await getDocs(classesCol);
+          classesSnap.forEach(docSnap => {
+            const cls = decodeURIComponent(docSnap.id);
+            const data = docSnap.data();
+            if (data.settings) cloudSettings[cls] = JSON.parse(data.settings);
+            if (data.schedule) cloudSchedule[cls] = JSON.parse(data.schedule);
+            if (data.noVisit) cloudNoVisit[cls] = JSON.parse(data.noVisit);
+            if (data.conditions) cloudConditions[cls] = JSON.parse(data.conditions);
+            if (!cloudClassNames.includes(cls)) cloudClassNames.push(cls);
+          });
+        } catch(e) {
+          console.error("クラウド読み込み失敗:", e);
+          alert("クラウドからの読み込みに失敗しました: " + e.message);
+          setSyncStatus('error', '同期失敗');
+          return;
+        }
+
+        // ★ 初期化タイムスタンプのチェック
+        // クラウド側で誰かが初期化を行っており、ローカルがそれより古い場合は
+        // ローカルの日程・条件を破棄してクラウドの状態（空）を採用する
+        const localResetAt = localStorage.getItem('homeVisitLastResetAt_v1');
+        let forceCloudWin = false;
+        if (cloudResetAt && (!localResetAt || new Date(cloudResetAt) > new Date(localResetAt))) {
+          // クラウドで初期化が起きている → ローカルの日程・条件は破棄
+          forceCloudWin = true;
+          classNames.forEach(cls => {
+            scheduleData[cls] = generateEmptySchedule();
+            noVisitData[cls] = [""];
+            conditionsData[cls] = {};
+          });
+          // ローカルの初期化タイムスタンプをクラウドに合わせる
+          localStorage.setItem('homeVisitLastResetAt_v1', cloudResetAt);
+        }
+
+        // 3. クラス単位でマージ
+        // 全クラスの統合リストを作る
+        const allClasses = new Set([...classNames, ...cloudClassNames]);
+        const mergedClassNames = [...allClasses];
+        
+        // 現在画面に表示しているクラス（このクラスは今自分が操作中なのでローカルを優先）
+        const activeTabElem = document.querySelector('.tab-btn.active');
+        const currentActiveTab = activeTabElem ? activeTabElem.dataset.target : '';
+        const currentViewingClass = document.getElementById('schedule-class-select').value;
+        const isEditingTab = (currentActiveTab === 'tab-schedule' || currentActiveTab === 'tab-conditions' || currentActiveTab === 'tab-settings');
+        
+        allClasses.forEach(cls => {
+          // 今まさに画面で開いているクラスはローカルを無条件優先
+          const isMyActiveClass = (cls === currentViewingClass && isEditingTab);
+          
+          // 名前の入力数をカウント
+          const localNameCount = settingsData[cls] ? settingsData[cls].filter(s => s.name.trim() !== '').length : 0;
+          const cloudNameCount = cloudSettings[cls] ? cloudSettings[cls].filter(s => s.name.trim() !== '').length : 0;
+          
+          // 配置済みスロット数をカウント
+          const countSlots = (sched) => {
+            if (!sched) return 0;
+            let count = 0;
+            sched.forEach(day => { if(day) day.forEach(slot => { if(slot && slot.studentName && slot.studentName.trim() !== '') count++; }); });
+            return count;
+          };
+          const localSlotCount = countSlots(scheduleData[cls]);
+          const cloudSlotCount = countSlots(cloudSchedule[cls]);
+
+          // 名簿のマージ
+          if (isMyActiveClass) {
+            // 自分が見ているクラス → ローカル優先
+          } else if (localNameCount === 0 && cloudNameCount > 0) {
+            // ローカルが空、クラウドにデータあり → クラウド採用
+            settingsData[cls] = cloudSettings[cls];
+          } else if (localNameCount > 0 && cloudNameCount > localNameCount) {
+            // 両方にデータあり、クラウドの方が多い → クラウド採用
+            settingsData[cls] = cloudSettings[cls];
+          }
+          // それ以外（ローカルの方が多いか同じ）→ ローカル維持
+          if (!settingsData[cls]) settingsData[cls] = generateEmptyClass();
+
+          // 日程のマージ
+          if (isMyActiveClass) {
+            // 自分が見ているクラス → ローカル優先
+          } else if (localSlotCount === 0 && cloudSlotCount > 0) {
+            scheduleData[cls] = cloudSchedule[cls];
+          } else if (localSlotCount > 0 && cloudSlotCount > localSlotCount) {
+            scheduleData[cls] = cloudSchedule[cls];
+          }
+          if (!scheduleData[cls]) scheduleData[cls] = generateEmptySchedule();
+
+          // noVisitのマージ
+          const localNoVisitCount = noVisitData[cls] ? noVisitData[cls].filter(n => n.trim() !== '').length : 0;
+          const cloudNoVisitCount = cloudNoVisit[cls] ? cloudNoVisit[cls].filter(n => n.trim() !== '').length : 0;
+          if (!isMyActiveClass) {
+            if (localNoVisitCount === 0 && cloudNoVisitCount > 0) {
+              noVisitData[cls] = cloudNoVisit[cls];
+            } else if (cloudNoVisitCount > localNoVisitCount) {
+              noVisitData[cls] = cloudNoVisit[cls];
+            }
+          }
+          if (!noVisitData[cls]) noVisitData[cls] = [""];
+
+          // conditionsのマージ
+          const localCondCount = conditionsData[cls] ? Object.keys(conditionsData[cls]).length : 0;
+          const cloudCondCount = cloudConditions[cls] ? Object.keys(cloudConditions[cls]).length : 0;
+          if (!isMyActiveClass) {
+            if (localCondCount === 0 && cloudCondCount > 0) {
+              conditionsData[cls] = cloudConditions[cls];
+            } else if (cloudCondCount > localCondCount) {
+              conditionsData[cls] = cloudConditions[cls];
+            }
+          }
+          if (!conditionsData[cls]) conditionsData[cls] = {};
+        });
+
+        classNames = mergedClassNames;
+        sortClassNames();
+
+        // 4. マージ結果をローカルに保存
+        saveAllLocal();
+        localStorage.setItem(STORAGE_KEY_CONDITIONS, JSON.stringify(conditionsData));
+
+        // 5. マージ結果をクラウドに保存（全クラス）
+        try {
+          setSyncStatus('syncing', 'クラウドに保存中...');
+          const batch = writeBatch(db);
+          
+          // グローバル設定
+          batch.set(globalConfigRef(), {
+            classNames: JSON.stringify(classNames),
+            timeConfig: JSON.stringify(timeConfig),
+            dateConfig: JSON.stringify(dateConfig),
+            settingsPassword: settingsPassword,
+            updatedAt: new Date().toISOString()
+          });
+
+          // 各クラス
+          classNames.forEach(cls => {
+            batch.set(classDocRef(cls), {
+              settings: JSON.stringify(settingsData[cls] || []),
+              schedule: JSON.stringify(scheduleData[cls] || []),
+              noVisit: JSON.stringify(noVisitData[cls] || [""]),
+              conditions: JSON.stringify(conditionsData[cls] || {}),
+              updatedAt: new Date().toISOString()
+            });
+          });
+
+          await batch.commit();
+          
+          // 6. UI更新
+          renderTimeDateConfig();
+          updateScheduleClassSelect();
+          setupDatalist();
+          renderSettings();
+          updateScheduleSiblings();
+          renderConditions();
+
+          setSyncStatus('synced', '同期完了');
+          soundSuccess.currentTime = 0; soundSuccess.play().catch(()=>{});
+          alert("クラウドと同期しました！");
+        } catch(e) {
+          console.error("クラウド保存失敗:", e);
+          alert("同期に失敗しました: " + e.message);
+          setSyncStatus('error', '同期失敗');
+        }
+      };
+
+      // === 認証処理 ===
+      const initAuth = async () => {
+        try {
+          await auth.authStateReady();
+          if (auth.currentUser && auth.currentUser.email) return;
+          if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+            try { await signInWithCustomToken(auth, __initial_auth_token); }
+            catch (tokenError) { await signInAnonymously(auth); }
+          } else {
+            await signInAnonymously(auth);
+          }
+        } catch (error) {
+          console.error("認証エラー:", error);
+          if (error.code === 'auth/configuration-not-found') {
+            alert("Firebaseコンソールで「Authentication > Sign-in method > 匿名(Anonymous)」を有効にしてください。");
+          }
+        }
+      };
+      initAuth();
+
+      onAuthStateChanged(auth, async (user) => {
+        const authBtn = document.getElementById('auth-btn');
+        if (authBtn) {
+          if (user && user.email) {
+            authBtn.textContent = 'ログアウト';
+            authBtn.onclick = window.handleLogout;
+          } else {
+            authBtn.textContent = 'ログイン';
+            authBtn.onclick = openAuthModal;
+          }
+        }
+
+        const loader = document.getElementById('global-loading');
+        
+        if (user) {
+          setSyncStatus('syncing', '接続中...');
+          await loadAllFromCloud();
+          if (loader) loader.style.display = 'none';
+        } else {
+          setSyncStatus('offline', '未接続');
+          if (loader) loader.style.display = 'none';
+        }
+      });
+
+      window.handleSignUp = async () => {
+        const email = document.getElementById('auth-email').value;
+        const pw = document.getElementById('auth-pw').value;
+        try {
+          const credential = EmailAuthProvider.credential(email, pw);
+          await linkWithCredential(auth.currentUser, credential);
+          alert("アカウントの作成と連携が完了しました！");
+          closeAuthModal();
+        } catch (e) {
+          if (e.code === 'auth/email-already-in-use') alert("このメールアドレスは既に登録されています。ログインしてください。");
+          else alert("エラー: " + e.message);
+        }
+      };
+
+      window.handleLogin = async () => {
+        const email = document.getElementById('auth-email').value;
+        const pw = document.getElementById('auth-pw').value;
+        try {
+          await signInWithEmailAndPassword(auth, email, pw);
+          alert("ログインしました。クラウドからデータを読み込みます。");
+          closeAuthModal();
+          location.reload();
+        } catch (e) { alert("ログイン失敗: " + e.message); }
+      };
+
+      window.handleLogout = async () => {
+        if (confirm("ログアウトしますか？")) {
+          try { await signOut(auth); alert("ログアウトしました。"); location.reload(); }
+          catch (e) { alert("ログアウト失敗: " + e.message); }
+        }
+      };
+
+    }).catch(err => {
+      console.error("Firebase連携エラー:", err);
+      const loader = document.getElementById('global-loading');
+      if (loader) loader.style.display = 'none';
+      setSyncStatus('error', '接続エラー');
+    });
+
+  </script>
+</body>
+</html>
